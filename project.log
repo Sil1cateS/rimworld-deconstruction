@@ -1478,3 +1478,23 @@ P3 完成：
 验证：
 - `git log --oneline -1` → `50c336d ...`（exit 0）
 - `git status --short` → 空（工作区干净）
+----------------------------------------------------------------
+
+2026-10-21T14:03:23+08:00 | Git 发布 | 轮次：配置 remote 并首次推送 | 类型：版本控制操作（用户已确认 SSH）
+
+概况：仓库 `git@github.com:Sil1cateS/rimworld-deconstruction.git` 已建好并完成首次推送；`main` 与 `origin/main` 对齐在 `cb11796`。
+原因：用户确认「已完成，ssh」。
+
+操作与结果：
+- `ssh -T git@github.com` → `Hi Sil1cateS! You've successfully authenticated`（exit 1 属正常：GitHub 不提供 shell）
+- 首次 `git ls-remote` 失败：`E:\Tools\Git\usr\bin\ssh.exe: fatal error - couldn't create signal pipe, Win32 error 5`——Git 自带 Cygwin ssh 在沙箱下无法建命名管道
+- 解决：仓库级 `git config core.sshCommand 'C:/Windows/System32/OpenSSH/ssh.exe'`，改用系统 OpenSSH 9.5p1
+- `git ls-remote git@github.com:Sil1cateS/rimworld-deconstruction.git` → exit 0（空仓库）
+- `git remote add origin ...` → `origin git@github.com:Sil1cateS/rimworld-deconstruction.git`
+- `git push -u origin main` → `* [new branch] main -> main`，`branch 'main' set up to track 'origin/main'`（exit 0）
+- `git ls-remote --heads origin` → `cb11796... refs/heads/main`；`git status -sb` → `## main...origin/main`
+- `web_fetch https://github.com/Sil1cateS/rimworld-deconstruction` → HTTP 200（仓库可访问）
+
+验证：
+- 远程 refs 与本地 HEAD 一致（cb11796）
+- 工作区干净
