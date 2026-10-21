@@ -1,0 +1,29 @@
+# 项目输入：RimWorld 1.7 游戏本体（约 1161 MB，绝不移交版本控制）
+/RimWorld/
+
+# 反编译语料（可由 scripts/decompile.ps1 完整重建；不随仓库分发）
+/analysis/decompiled/
+
+# 反编译诊断产物（临时，可重建）
+/analysis/diag/
+
+# 项目治理文件（本地保留，不入库）
+/00_PROJECT_RULES.md
+/01_PROJECT_PLAN.md
+
+# 运行日志（本地证据；只保留 GATE.log）
+/logs/*.log
+!/logs/GATE.log
+/logs/*.txt
+
+# 临时产物
+/tmp/
+*.tmp
+*.bak
+*.orig
+
+# 编辑器 / 系统
+.vs/
+.vscode/
+Thumbs.db
+desktop.ini

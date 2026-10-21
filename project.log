@@ -1,0 +1,1458 @@
+PROJECT LOG
+
+项目：rimworld-deconstruction（RimWorld 1.7 游戏进程规则解构）
+时区：Asia/Shanghai (UTC+08:00)
+
+记录以中文为主，必要时使用英文术语。记录只追加，不改写旧条目。每条记录使用包含明确 UTC 偏移量的 ISO 8601 时间。记录方案确认及之后的重要项目事件，包括实施轮次、验证、问题、交付和专有操作。服务启动、依赖安装、环境变更、外部访问及 Git 操作均作为独立事件记录。省略不适用的字段。不得记录密钥、凭证、私钥、令牌、个人数据或其他敏感信息。
+
+----------------------------------------------------------------
+[2026-10-20T12:04:08+08:00] | 阶段：4 方案确认 | 轮次：不适用 | 类型：方案 / 决定
+
+概况：`01_PROJECT_PLAN.md` v1 获确认，项目进入实施。用户就四项开放决定逐条作答。
+范围 / 文件：`01_PROJECT_PLAN.md`、`00_PROJECT_RULES.md`、`README.md`、`state.md`、`.gitignore`
+用户决定 / 确认：
+- D1 范围覆盖全部子系统（19 卷 V00–V18），不限于 tick/时间/事件三卷。
+- D2 反编译语料全量落盘到 `analysis/decompiled/`。
+- D3 直接走 `dnSpy.Console` CLI，不使用 dnSpyEx MCP 扩展。
+- D4 在可用条件下产出完整文档并配图（Mermaid）。
+问题 / 后续：`01_PROJECT_PLAN.md` 的 AC1 与 `00_PROJECT_RULES.md` §5 已按 D4 对齐为「六节英文锚点 + Mermaid 图」。
+----------------------------------------------------------------
+[2026-10-20T12:04:19+08:00] | 阶段：2 调查（补充） | 轮次：不适用 | 类型：外部访问
+
+概况：只读访问 GitHub 上 `AgentSmithers/DnSpy-MCPserver-Extension` 的 README（走 `web_fetch` 工具，服务端出网）。
+原因：确认 MCP 路线是否可行，以便在方案中给出取舍依据。
+操作详情：仅读取公开 README 文本，未上传任何项目数据、未提交任何内容。shell 内 HTTPS 不可用（沙箱令牌取不到 TLS 凭据），故不使用 curl/git。
+结果：该扩展需构建整棵 dnSpyEx 源码（VS + net48 + Core10 + 注册表 `LongPathsEnabled`），且其读能力与 `dnSpy.Console -t` 等价。据此决定采用 CLI 路线。
+问题 / 后续：如需 MCP 路线，需先解决 HTTPS/克隆与 VS 工具链安装，另行确认。
+----------------------------------------------------------------
+[2026-10-20T12:04:19+08:00] | 阶段：6 实施 | 轮次：R1 基础设施 | 类型：实施
+
+概况：建立项目骨架并启动全量反编译。
+原因：19 卷文档与机器校验都依赖统一的语料与类型索引。
+范围 / 文件：`scripts/decompile.ps1`、`scripts/list-types.ps1`、`scripts/probe-type.ps1`、`scripts/verify-claims.ps1`、`scripts/lint-docs.ps1`；`analysis/decompiled/`、`analysis/index/`、`logs/`
+操作详情：新建 `logs/`、`scripts/`、`analysis/{decompiled,index}`、`docs/mechanisms`；反编译 5 个程序集（`Assembly-CSharp`、`RimWorld`、`Waylith`、`Waylith.UnityCompat`、`UnityStubs`），参数 `-o <dir> --no-resources --no-baml --no-sln`。
+验证：见本轮 GATE 与 `logs/decompile-*.log`。
+结果：进行中；已确认 `Assembly-CSharp.dll` → 9262 个 `.cs`、33.7 MB、60.6 s、exit=0；`RimWorld.dll` → 45 个 `.cs`、0.5 MB、2.5 s、exit=0。
+问题 / 后续：`Waylith.dll` 反编译在单类型上耗时异常（进程持续占 CPU 但长时间不产出新文件），需观察或改用 IL 模式。
+----------------------------------------------------------------
+[2026-10-20T12:05:00+08:00] | 阶段：6 实施 | 轮次：R1 | 类型：环境变更（进程级，非持久）
+
+概况：本机工具进程执行策略为 AllSigned，脚本被拒；改用进程级 bypass 调用。
+原因：`& script.ps1` 报 `PSSecurityException / 未进行数字签名`；文件无 Zone.Identifier 流，`Unblock-File` 无效，说明是进程级策略而非文件标记。
+操作详情：以 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts\decompile.ps1` 调用，仅对子进程生效，未修改机器或用户级执行策略（`Get-ExecutionPolicy -List`：MachinePolicy/UserPolicy/Process/LocalMachine 均 Undefined，CurrentUser=RemoteSigned）。
+结果：脚本正常运行。
+问题 / 后续：本项目全部脚本一律按此方式调用，已写入 `README.md` 与 `00_PROJECT_RULES.md` §4；若要持久放宽策略需单独确认。
+----------------------------------------------------------------
+[2026-10-20T12:16:58+08:00] | 阶段：6 实施 | 轮次：R1 基础设施 | 类型：实施 / 检查
+
+概况：R1 完成。4 个程序集全量反编译 + 1 个程序集部分反编译，类型索引建成，5 个动作脚本可用，2 个校验脚本通过冒烟测试。
+原因：19 卷文档与全部机器校验都建立在语料与索引之上，必须先固化这一层。
+范围 / 文件：
+- 新增 `README.md`、`00_PROJECT_RULES.md`、`01_PROJECT_PLAN.md`、`state.md`、`.gitignore`、`project.log`
+- 新增 `scripts/decompile.ps1`、`list-types.ps1`、`probe-type.ps1`、`verify-claims.ps1`、`lint-docs.ps1`
+- 生成 `analysis/decompiled/{Assembly-CSharp,RimWorld,Waylith,Waylith.UnityCompat,UnityStubs}/`（10463 文件 / 39.7 MB）
+- 生成 `analysis/index/types.tsv`（11275 类型）、`namespaces.tsv`（111 命名空间）
+操作详情：`dnSpy.Console -o <dir> --no-resources --no-baml --no-sln`；反编译后把 dnSpy 自建的同名项目子目录拍平，使语料路径为 `analysis/decompiled/<Asm>/<Namespace>/<Type>.cs` 可直接引用。
+验证：
+- `Assembly-CSharp` 9262 文件 / 32.1 MB / 60.6 s / exit=0
+- `RimWorld` 45 文件 / 0.5 MB / 2.5 s / exit=0
+- `Waylith.UnityCompat` 8 文件 / 0.1 MB / 0.7 s / exit=0
+- `UnityStubs` 704 文件 / 2.5 MB / 11.2 s / exit=0
+- `probe-type.ps1` 抽查：`Verse.TickManager`、`RimWorld.DateNotifier`、`Verse.Root`、`Verse.AI.JobDriver`、`Waylith.UnityCompat.UnityFrame`、`UnityEngine.MonoBehaviour` 全部 exit=0；反例 `Verse.NotARealType` exit=1，语义符合预期
+- 索引交叉核对：`Verse.TickManager` 的 Token RID `0x020001FB` 与 dnSpy 直接输出一致
+- `verify-claims.ps1` 冒烟：构造 1 条真断言 + 1 条假断言，输出 pass=1 fail=1 exit=1，随后删除测试目录
+- `lint-docs.ps1` 在空 `docs/mechanisms` 上返回 exit=2（no docs found），解析无误
+问题 / 后续：
+- `Waylith.dll` 整程序集反编译两次在同一位置卡死（写出 439 文件后不再产出、CPU 持续占用），已 kill；处置为接受部分语料，引擎类型改按需 `-t` 提取，并记入 `state.md` 已知限制。
+- 期间修正三处脚本缺陷：日志文件名同分钟冲突（改为含秒 + PID）、`-File` 数组参数被拼成单串（脚本内按逗号拆分）、`"$rel:"` 被解析为驱动器限定变量（改 `${rel}:`）。
+- `Waylith` 语料不完整属已声明限制，R11 验收时按「已落地 + 可按需提取」口径核对。
+----------------------------------------------------------------
+[2026-10-20T12:23:16+08:00] | 阶段：6 实施 | 轮次：R2 V00+V01 | 类型：实施 / 检查
+
+概况：R2 完成。产出 `V00-overview.md`（程序集与命名空间地图、主链、19 卷挂点）与 `V01-tick-pipeline.md`（帧循环、tick 限流、22 阶段单 tick 顺序、分桶调度、倍率表），共 536 行、4 张 Mermaid 图、49 条 claim。
+原因：V00/V01 是其余 17 卷的地基——所有后续机制都挂在同一条 tick 主链上，必须先钉死主链与证据格式样板。
+范围 / 文件：`docs/mechanisms/V00-overview.md`、`docs/mechanisms/V01-tick-pipeline.md`、`state.md`
+操作详情：全部结论取自 `analysis/decompiled/` 语料（`TickManager.cs`、`TickList.cs`、`TickerType.cs`、`TimeSpeed.cs`、`Game.cs`、`Root_Play.cs`、`Root.cs`、`RealTime.cs`、`Map.cs`、`MapComponentUtility.cs`、`GameComponentUtility.cs`、`GenTicks.cs`、`UnityStubs/UnityEngine/Time.cs`）。
+验证：
+- `scripts/verify-claims.ps1` → claims=49 pass=49 fail=0，exit=0
+- `scripts/lint-docs.ps1` → docs=2 claims=49 mermaid=4 errors=0，exit=0
+结果（本轮确立的关键机制结论）：
+- 帧→tick：`Root_Play.Update` → `Game.UpdatePlay` → `TickManagerUpdate`；累加用「理论每 tick 实时 1/(60×倍率)」并对抖动做 10% 抑制；每帧上限 `倍率×2`，单帧预算 45.454544 ms（=1/22，对应 `WorstAllowedFPS=22`），超预算即中断并把剩余积压清零（不追帧）。
+- 倍率：Paused 0、Normal 1、Fast 3、Superfast 6/12/18（依有地图/无事发生/无地图）、Ultrafast 15/150/20000（依有地图/无地图/调试开关）。
+- 单 tick 22 阶段固定顺序，地图 `MapPreTick` 最先、`MapPostTick`（含 `MapComponentTick`）在中段、`GameComponentTick` 靠后；多数阶段独立 try/catch。
+- 分桶：Normal 1 / Rare 250 / Long 2000 个桶，按 `TicksGame % 间隔` 取单桶执行，物体入桶由 `GetHashCode() % 间隔` 决定（哈希打散），注册/注销延迟到下次 Tick 开头。
+问题 / 后续：
+- V01 记入 5 条未解问题，其中「高倍速下抖动抑制阈值几乎必然失效，实际倍率可能由帧率决定」需在 V02 用时长换算交叉确认。
+- 文档中的 Token 已在写作期被索引核对修正一次（`Root_Play` 实为 `0x02000204`、`Game` 为 `0x020001E9`），说明「先写后核」流程有效。
+----------------------------------------------------------------
+[2026-10-20T12:33:55+08:00] | 阶段：6 实施 | 轮次：R3 V15+V02 | 类型：实施 / 检查
+
+概况：R3 完成。产出 `V15-def-and-xml-pipeline.md`（Def/XML 装载管线、继承语义、补丁三态、入库去重）与 `V02-time-and-calendar.md`（时间标尺、本地时间、季节判定、年龄推进），并在 V02 给出 V01 遗留问题的定量闭环。
+原因：V15 是其余所有玩法卷的数据前提（全部数值来自 Def）；V02 是「进程规则」的时间解释层。
+范围 / 文件：`docs/mechanisms/V15-def-and-xml-pipeline.md`、`docs/mechanisms/V02-time-and-calendar.md`、`state.md`
+操作详情：证据取自 `LoadedModManager`/`DefDatabase`/`DirectXmlLoader`/`XmlInheritance`/`PatchOperation`/`ScribeLoader` 与 `GenDate`/`GenTicks`/`DateNotifier`/`SeasonUtility`/`Pawn_AgeTracker` 语料。
+验证：
+- `scripts/verify-claims.ps1` → claims=100 pass=100 fail=0，exit=0（累计四卷）
+- `scripts/lint-docs.ps1` → docs=4 claims=100 mermaid=9 errors=0，exit=0
+结果（本轮关键结论）：
+- 装载顺序固定：Clear → InitializeMods → LoadModContent → CreateModClasses → LoadModXML → CombineIntoUnifiedXML → TKeySystem → ErrorCheckPatches → **ApplyPatches** → ParseAndProcessXML（TryRegister → Resolve → 逐节点 DefFromNode）→ ClearCachedPatches。补丁作用在「全 mod 合并后的单一 XmlDocument」上，故可跨 mod 改节点。
+- 继承是两段式：先注册全部节点再一次性 Resolve；解析=深拷贝父结果+递归覆盖；`Inherit="false"` 实为清空重写；`Abstract="true"` 不生成 Def。
+- 入库去重三档：同 mod 内重名→跳过+报错；跨 mod 撞名→加随机后缀直到唯一；单类型 >65535 → 告警（ushort index 上限）。
+- 时间标尺：2500 tick/时、60000 tick/天、300000 tick/刻（5 天）、900000 tick/季（15 天）、3600000 tick/年（60 天）；开局固定当天 6 点，时区宽 15 度=2500 tick。
+- 季节不由四等分决定，而是「年内百分比 + 纬度」经 `SeasonUtility.GetReportedSeason` 得出，极地可返回常夏/常冬；`DateNotifier` 每 tick 判季、取时区最小的家园地图、5 天内不发季节提示、回退上一季不提示。
+- 年龄：生物年龄=`ageBiologicalTicksInt/3600000`，按 `BiologicalTicksPerTick` 速率累积，生日由整年跨越触发；年龄反转需求每 60000 tick 检查。
+问题 / 后续：
+- V02 记入 5 条未解问题，其中 `IsHashIntervalTick` 定义未取证，需在 V04（Thing 系统）补齐。
+- V15 记入 5 条未解问题：`DefInjectionPackage`（948 行，翻译注入）与 `TKeySystem`/`ErrorCheckPatches` 规则未展开，`OverwritePriority` 取值来源未确认。
+----------------------------------------------------------------
+[2026-10-20T12:37:16+08:00] | 阶段：6 实施 | 轮次：R4 V03+V04 | 类型：实施 / 检查
+
+概况：R4 完成。产出 `V03-map-and-pathfinding.md`（Map 网格族、1.7 批量作业式寻路、Region/District/Room 三层、可达性缓存）与 `V04-thing-lifecycle.md`（DoTick 三段节流、SpawnSetup 注册级联、DeSpawn 镜像注销、IsHashIntervalTick 错峰原语），并补齐 R3 遗留的 `IsHashIntervalTick` 定义。
+原因：这两卷是 V05/V06 的直接前置（Pawn 与 AI 都建立在实体生命周期与网格之上）。
+范围 / 文件：`docs/mechanisms/V03-map-and-pathfinding.md`、`docs/mechanisms/V04-thing-lifecycle.md`、`state.md`
+验证：
+- `scripts/verify-claims.ps1` → claims=145 pass=145 fail=0，exit=0
+- `scripts/lint-docs.ps1` → docs=6 claims=145 mermaid=14 errors=0，exit=0
+结果（本轮关键结论）：
+- `IsHashIntervalTick` 定义在 `Verse.Gen`（扩展方法），四种重载分别服务 Map/Thing/WorldObject/Faction；语义 = `(TicksGame + id.HashOffset()) % interval == 0`，盐值 169495093。
+- `Thing.DoTick` 是三段节流：分桶（def.tickerType，V01）→ `TickInterval`（UpdateRateTicks 经三向 clamp）→ Rare/Long 的哈希门控（仅对强制每 tick 调用的 holder 生效）。容器内容递归 `directlyHeldThings.DoTick()`，可被 `ContentsSuspended` 整体挂起。
+- `SpawnSetup` 是一次跨十余个子系统的注册广播（区域 → 总表 → 占位网格 → gas/温度 → tick 桶 → 绘制 → link/zone/region 脏标记 → pathing 代价 → reachability 缓存 → cover → haulable/mergeable → 攻击目标 → Room → 搬运目标/来源 → 信号 → 音效与代码库发现 → map.events）；`DeSpawn` 严格镜像，并释放保留、记录 despawnedTick、置 `mapIndexOrState = -1`。
+- 寻路在 1.7 改为批量作业：`PathFinderTick` 先收尾上帧作业，无请求立即返回，有请求则 `GatherData` 打包网格并 `ScheduleBatchedPathJobs`；同步入口 `FindPathNow` 仍保留。因此路径有延迟，AI 走位不是当帧决定。
+- 地形/物体变化的三条失效链：`AffectsRegions` → regionDirtyer；`pathCost != 0 或不可通行` → pathing 重算；`AffectsReachability` → reachability.ClearCache。
+问题 / 后续：
+- V03 记入 5 条未解问题（作业真实并行度受 Waylith 语料缺失限制、PathFinderCostTuning 未解构、Room 围合判定未展开等）。
+- V04 记入 5 条未解问题（UpdateRateTicks 的各覆写来源、ThingOwner 递归深度保护、ReservationManager 冲突裁决属 V06、mapIndexOrState 为 sbyte 的容量含义等）。
+----------------------------------------------------------------
+[2026-10-20T12:42:12+08:00] | 阶段：6 实施 | 轮次：R5 V05+V14 | 类型：实施 / 检查
+
+概况：R5 完成。产出 `V05-pawn.md`（Pawn 组件组动态增删、Tick 与 TickInterval 双入口分工、需求 150 tick 节流、动物 15 tick 降频）与 `V14-medical-and-genes.md`（Hediff 两层 tick、疾病严重度/免疫双轨、MTB 掷骰写法、手术账单、基因门控）。
+原因：Pawn 是 V06/V13 的主体；健康/免疫是「进程规则」中唯一按天尺度漂移的状态机。
+范围 / 文件：`docs/mechanisms/V05-pawn.md`、`docs/mechanisms/V14-medical-and-genes.md`、`state.md`
+验证：
+- `scripts/verify-claims.ps1` → claims=197 pass=197 fail=0，exit=0
+- `scripts/lint-docs.ps1` → docs=8 claims=197 mermaid=18 errors=0，exit=0
+结果（本轮关键结论）：
+- Pawn 不是单体：二十余个组件由 `PawnComponentsUtility` 在 Spawn/状态变化/死亡/离图四个钩子上动态增删，因此 `jobs`/`drafter`/`mindState` 等字段在尸体或世界层面 Pawn 上可能为 null。
+- `Pawn.Tick()`（protected override，每 tick）跑移动/动词/姿态/Job 推进/`health.HealthTick`/装备/基因/渲染 effecters；`Pawn.TickInterval(delta)` 跑 Job 区间/健康区间/心理状态/搬运/感染向量/需求。两者不是替代关系。
+- `UpdateRateTicks` 被 Pawn 覆写：动物返回 15，人类沿用基类 1。配合 `delta` 参数，动物身上整套区间逻辑以 1/15 频率推进。
+- 需求再套一层节流：`IsHashIntervalTick(150, delta)` 不成立直接返回，实际调用 `NeedInterval()`（间隔语义）。
+- `Hediff.Tick()` 是空虚函数；周期逻辑全在 `TickInterval(delta)`（`ageTicks += delta` + 阶段效果），且 hediffGivers / 精神事件 / 呕吐 / 遗忘全部套 60 tick 哈希与 `Rand.MTBEventOccurs(mtb, 60000f, 窗口)` 掷骰。
+- 疾病是「严重度 vs 免疫」双轨：严重度按天（`SeverityChangePerDay`）折算，免疫按病种记账（`ImmunityRecord.hediffDef`）、累加后 Clamp01，满 1 即免疫；增速乘 `ImmunityGainSpeed`，基因可整体免疫；随机种子用 `loadID ^ world.persistentRandomValue` 保证同存档可复现。
+- 手术只是普通 Bill 的子类（多一个 `Part` 与完成钩子）；基因被 `ModLister.BiotechInstalled` 整段门控，分 xenogene/endogene 两类遍历。
+问题 / 后续：
+- V05 记入 5 条未解问题（`NeedInterval` 单次推进量是否随 delta 缩放、`TickInterval` 尾部未读完、`TickRare` 与新区间体系是否功能重叠等）。
+- V14 记入 5 条未解问题（伤口自愈速率、severity 折算算术、`HediffSet.AddDirect` 去重规则、身体树结构、成瘾与化学需求联动）。
+----------------------------------------------------------------
+[2026-10-20T13:03:55+08:00] | 阶段：6 实施 | 轮次：R6 V06+V07 | 类型：实施 / 检查
+
+概况：R6 完成。产出 `V06-ai-and-jobs.md`（JobTracker 双入口、常驻决策树 30 tick 节流、距离缩放式过期、Job→Toil 展开、保留系统分层裁决）与 `V07-work-and-production.md`（工作优先级双表、找活顺序、Bill/Recipe 账本、搬运与存储优先级）。
+原因：V06/V07 是「殖民地被驱动起来」的全部机制，也是 V05 双 tick 入口的实际用途所在。
+范围 / 文件：`docs/mechanisms/V06-ai-and-jobs.md`、`docs/mechanisms/V07-work-and-production.md`、`state.md`
+验证：
+- `scripts/verify-claims.ps1` → claims=238 pass=238 fail=0，exit=0
+- `scripts/lint-docs.ps1` → docs=10 claims=238 mermaid=24 errors=0，exit=0
+结果（本轮关键结论）：
+- `JobTrackerTick`（每 tick）只有一行实际动作 `curDriver.DriverTick()`；选新任务不在每 tick 发生。
+- 常驻决策树（精神状态/需求类强制行为）走 `IsHashIntervalTick(30, delta)`；完整找活仅在「无当前任务 + 未死 + mindState.Active」时触发 `TryFindAndStartJob`。
+- 任务过期是复合判定：`expiryInterval` 可由到目标的曼哈顿距离经 `DistanceIntervalCurve` 缩放，且要求「已过阈值 + 哈希命中」；`expireRequiresEnemiesNearby` 的任务在 25 格内无敌时不被判超时。
+- `JobDriver.TryMakePreToilReservations` 是抽象方法——每个驱动器必须显式声明预占目标，这是防抢占的第一道闸；`Toil` 是钩子容器（init/tick/tickInterval/end/pre*/finish + atomicWithPrevious + socialMode）。
+- 保留系统四粒度释放（Release / ReleaseClaimedBy / ReleaseAllClaimedBy / ReleaseAllForTarget）、支持分层占用与 canReserversStartJobs；`ReleaseAllForTarget` 由 V04 的 DeSpawn 调用。
+- 找活顺序两层：玩家强制优先工作 → 该类型内 `workGiversByPriority`；否则按 `WorkGiversInOrderNormal`/`Emergency` 两张缓存表遍历，`ShouldSkip` 与 `MissingRequiredCapacity` 做前置剪枝。
+- `Bill` 的核心抽象只有 `ShouldDoNow()`，完成一次迭代统一走 `Notify_IterationCompleted`；`BillStack.RemoveIncompletableBills` 主动清理失效账单。搬运判定链是 `IsInAnyStorage` → `IsInValidBestStorage` → `StoragePriorityAtFor`。
+问题 / 后续：
+- V06 记入 5 条未解问题（ThinkNode 子类语义、TryFindAndStartJob 完整顺序、DriverTick 与 DriverTickInterval 分工、atomicWithPrevious 中断语义、精神状态与 JobTracker 先后）。
+- V07 记入 5 条未解问题（WorkGiver_Scanner 扫描成本、workGiversByPriority 生成规则、Bill_Production 三模式状态机、工作量折算、SlotGroup 预留机制）。
+----------------------------------------------------------------
+[2026-10-20T13:40:01+08:00] | 阶段：6 实施 | 轮次：R7 V08+V13 | 类型：实施 / 检查
+
+概况：R7 完成。产出 `V08-combat-and-damage.md`（Verb 状态机、Projectile 双目标、DamageWorker 契约、护甲两级削伤、伤害前后钩子）与 `V13-needs-and-mood.md`（需求 150 tick 量子、Seeker 靠拢模型、心情=思想总和的夹取、精神状态显式触发），并闭环 V05 遗留的 `NeedInterval` 语义问题。
+原因：战斗是伤害源（接 V14），需求/心情是「进程规则」里唯一跨天尺度的软状态机。
+范围 / 文件：`docs/mechanisms/V08-combat-and-damage.md`、`docs/mechanisms/V13-needs-and-mood.md`、`state.md`
+验证：
+- `scripts/verify-claims.ps1` → claims=275 pass=275 fail=0，exit=0
+- `scripts/lint-docs.ps1` → docs=12 claims=275 mermaid=29 errors=0，exit=0
+结果（本轮关键结论）：
+- 护甲是**两级**削伤：先按穿戴衣物倒序逐件削（仅 `CoversBodyPart(part)` 的生效，每件独立削减，非取最大值），再算 Pawn 本体护甲属性；削到 `< 0.001f` 即判弹开并返回 0（绝对阈值，不是比例）。
+- 伤害链路：`Thing.TakeDamage` → `PreApplyDamage(ref dinfo, out absorbed)`（可改写伤害、可整体吸收）→ `DamageWorker.Apply`（返回 DamageResult）→ `PostApplyDamage(dinfo, totalDamageDealt)`。
+- 抛射物 `Launch` 携带 `usedTarget` 与 `intendedTarget` 双目标 + `ProjectileHitFlags`，误伤挡路者由此决定；命中分 `Impact(hitThing, blockedByShield)` 与 `ImpactSomething`（打地/掩体）。
+- **需求量子闭环**：`NeedInterval` 是抽象方法，各种需求自带实现；`Need_Food` 用 `FoodFallPerTick * 150f`，`Need_Seeker` 用 `seekerPerHour * 0.06f`——两者都等价于 150 tick（= 0.06 游戏小时，2500 tick/时）的量。因此 `delta` 只是哈希窗口容差：人类步长 1（delta=1）要求余数为 0，动物步长 15（delta=15）要求余数落在 [0,15)，两条路径都**恰好每 150 tick 命中一次**，故动物降频不改变需求衰减速率。
+- 心情不走线性衰减：`Need_Mood : Need_Seeker`，瞬时值 = `clamp01(baseLevel + (TotalMoodOffset + colonistMoodOffset)/100)`，按 tick 缓存；思想先按组去重再求和。
+- 精神状态不是阈值自动触发，而是 `TryStartMentalState` 显式发起并带原因标记（`causedByMood`/`causedByDamage`/`causedByPsycast`/`forced`）。
+问题 / 后续：
+- V08 记入 5 条未解问题（ShotReport 命中率分解、CoverUtility 掩体判定、DamageWorker 子类部位决定、ApplyArmor 穿甲公式主体、近战与远程差异）。
+- V13 记入 5 条未解问题（记忆思想老化规则、崩溃阈值来源、精神状态触发链的 tick 归属、灵感模型、其余需求是否同构）。
+----------------------------------------------------------------
+[2026-10-20T13:53:33+08:00] | 阶段：6 实施 | 轮次：R8 V09+V11 | 类型：实施 / 检查
+
+概况：R8 完成。产出 `V09-storyteller-and-quests.md`（叙事者 1000 tick 节拍、事件合法性闸门、威胁点公式、延迟队列）与 `V11-factions-and-social.md`（好感两级模型、关系类型、个体意见、互动权重与社交冲突）。
+原因：叙事者是事件投放的节拍源；派系/社交是事件、贸易、任务的共同前置。
+范围 / 文件：`docs/mechanisms/V09-storyteller-and-quests.md`、`docs/mechanisms/V11-factions-and-social.md`、`state.md`
+验证：
+- `scripts/verify-claims.ps1` → claims=310 pass=310 fail=0，exit=0
+- `scripts/lint-docs.ps1` → docs=14 claims=310 mermaid=34 errors=0，exit=0
+结果（本轮关键结论）：
+- 叙事者节拍：`StorytellerTick` 每 tick 只推进延迟队列；事件生成硬编码在 `TicksGame % 1000 == 0`（≈16.7 游戏秒），由 `DebugSettings.enableStoryteller` 总开关门控。
+- 触发双条件：`CanFireNow(parms) && TryExecute(parms)`；成功后记 `lastIncidentTick` 并通知 `StoryState`。
+- 事件闸门链：目标允许 → 是否过 `earliestDay`（按**定居后天数** `DaysPassedSinceSettle`）→ 难度类别允许 → `ThreatBig` 是否禁大威胁 → `points` 是否落在 `minThreatPoints`/`maxThreatPoints` → 生物群系白/黑名单；`parms.forced` 可绕过大部分。
+- 威胁点是统一标尺：基础项 `PointsPerWealthCurve(玩家财富)`；每个自由殖民者按 `PointsPerColonistByWealthCurve(财富)`（非线性，人越多不线性变强）；动物 `0.08 × combatPower`（远行队再 ×0.7）；机械族/次人类按 combatPower × 曲线；健康折减 `Lerp(…, 0.65)`；奴隶 ×0.75；休眠舱内 ×0.3。
+- 派系好感是「自然值 + 累积修正」两级（`BaseGoodwillWith`/`GoodwillWith`），进阶入口 `TryAffectGoodwillWith` 带 `HistoryEventDef` 因而可在历史追溯；`RelationKindWith` 与数值分离（存在永久状态覆盖）。
+- 个体意见走「动态求和」（`OpinionOf`），与派系好感的累积模型不同；互动选择按 `RandomSelectionWeight` 加权，执行统一走 `Interacted`；社交冲突由 `SocialFightChance` 概率触发，先经 `SocialFightPossible` 可行性检查。
+问题 / 后续：
+- V09 记入 5 条未解问题（多 comp 候选取舍算法、三条曲线形状、QuestGen 流程、parms.points 赋值方、难度对频率的影响）。
+- V11 记入 5 条未解问题（OpinionOf 构成项、好感夹取上下限、永久关系覆盖、互动发起频率、Ideology 改写）。
+----------------------------------------------------------------
+[2026-10-20T13:56:13+08:00] | 阶段：6 实施 | 轮次：R9 V10+V12 | 类型：实施 / 检查
+
+概况：R9 完成。产出 `V10-world-and-caravans.md`（WorldTick 七阶段、世界对象快照分发、远行队复用子系统）与 `V12-economy-and-trade.md`（Pawn 质量折价乘/加混合模型、三条曲线、Tradeable/TradeDeal 结算与失败表达）。
+原因：世界层是事件的落地层，贸易是 Pawn 价格模型唯一需要单独解构的地方。
+范围 / 文件：`docs/mechanisms/V10-world-and-caravans.md`、`docs/mechanisms/V12-economy-and-trade.md`、`state.md`
+验证：
+- `scripts/verify-claims.ps1` → claims=348 pass=348 fail=0，exit=0
+- `scripts/lint-docs.ps1` → docs=16 claims=348 mermaid=38 errors=0，exit=0
+结果（本轮关键结论）：
+- `World.WorldTick` 固定七阶段：worldPawns → factionManager → worldObjects → debugDrawer → pathGrid → worldComponents → ideoManager；`WorldPostTick` 只跑 gameConditionManager（且单独 try/catch）。
+- 世界对象分发前先复制快照（`tmpWorldObjects.AddRange`），与 HealthTick 同一手法，防遍历中改集合。
+- 远行队不是简化模拟：`Caravan.TickInterval` 复用寻路、需求、搬运、睡具、采集、用药、医疗、污染八套子系统（各自 `Caravan_*Tracker` 实现），所以无地图也会饿会累会感染。
+- 「远行队跑得飞快」的真相不在此处：是 V01 的倍率表在无地图时给 18/150 倍。
+- Pawn 价格是**乘加混合**：健康 `Lerp(0.2,1)`、逐项能力（缺失 ×0.6 / 存在 `Lerp(0.5,1)`）、平均技能曲线（0→0.2 / 5.5→1 / 20→3）、生命阶段系数全部**相乘**；特质偏移、美貌(×0.2)、hediff 价差**相加**；下限 0.1。故「残废 + 低技能」的折价是乘性塌陷。
+- 交易失败用原因列表（`cannotSellReasons`）表达而非异常；银两本身也是 Tradeable（`IsCurrency`）。
+问题 / 后续：
+- V10 记入 5 条未解问题（WorldObject.DoTick 分类型行为、移动成本模型、世界/地图暂停一致性、PlanetLayer 轨道层、远行队遇袭切图）。
+- V12 记入 5 条未解问题（MarketValue stat 本体、好感/难度差价乘数位置、StockGenerator、 trader tracker 差异、发射费用）。
+----------------------------------------------------------------
+[2026-10-20T13:58:26+08:00] | 阶段：6 实施 | 轮次：R10 V17+V18 | 类型：实施 / 检查
+
+概况：R10 完成。产出 `V17-ui-and-rendering.md`（Update/OnGUI 双通道、窗口栈强制暂停、渲染脏标记层级、Unity 桩桥接）与 `V18-dlc-mechanics.md`（五个 DLC 开关模型与各自挂点，Odyssey 地块变异为侵入最深）。
+原因：V17 是逻辑与表现的分界线（解释为什么纯静态解构能成立）；V18 收束五个 DLC 的增量注入方式。
+范围 / 文件：`docs/mechanisms/V17-ui-and-rendering.md`、`docs/mechanisms/V18-dlc-mechanics.md`、`state.md`
+验证：
+- `scripts/verify-claims.ps1` → claims=377 pass=377 fail=0，exit=0
+- `scripts/lint-docs.ps1` → docs=18 claims=377 mermaid=43 errors=0，exit=0
+结果（本轮关键结论）：
+- 帧循环分两条通道：`Update`（时间/tick/逻辑/输入）与 `OnGUI`（绘制/窗口/相机叠加）。逻辑全部集中在 `Update`，`OnGUI` 只做表现——这是「进程规则可在静态语料上解构」的根本前提。
+- 表现层唯一倒灌逻辑的地方是窗口栈：`WindowStack.WindowsForcePause` 遍历窗口的 `forcePause` 标记，被 `TickManager.ForcePaused` 采信（V01 已记录）。
+- 渲染按层打脏标记（`MapMeshFlagDefOf.Things`），且只有 `def.CanAffectLinker` 才触发连接层重绘；动态对象走 `dynamicDrawManager` 独立注册。
+- 引擎桥接是「桩层转发」：`UnityEngine.Time` 等类型转发到 `UnityStubs.Internal.UnityRuntime` 再进 `Waylith.UnityCompat`。
+- 五个 DLC 共用 `ModsConfig.{Royalty,Ideology,Biotech,Anomaly,Odyssey}Active` 静态开关，全部采用「前置判断 + 就地注入」，不做继承替换；关闭 DLC 只短路路径，类型仍在（V14 的 `GeneTrackerTick` 早退即例证）。
+- 各 DLC 挂点：Royalty → Pawn 组件（灵能熵独立 TickInterval）；Ideology → `Ideo` 戒律列表 + 成员事件驱动思想；Biotech → 惰性创建的污染网格 + 基因；Anomaly → 物体生成时的图鉴登记；Odyssey → 地图构造/tick 多处分支 + `TileMutatorDef.Worker.Tick(map)`（地块级规则改写，侵入最深）。
+问题 / 后续：
+- **19 卷清单尚缺 V16（存档与序列化）**：R2–R10 共完成 18 卷，`V16-save-and-serialization.md` 未产出。
+- V17 记入 5 条未解问题（UIRoot_Play 覆写、IMGUI 多次调用、PawnRenderTree、Waylith 侧缺失、输入分发序）。
+- V18 记入 5 条未解问题（ModsConfig 与 ModLister 双轨、头衔与需求挂钩、仪式评分、机械族、太空层）。
+----------------------------------------------------------------
+[2026-10-20T14:03:11+08:00] | 阶段：6 实施 | 轮次：R11 V16 + 项目级验收 | 类型：实施 / 检查 / 决定
+
+概况：R11 完成。补产 `V16-save-and-serialization.md`（Scribe 五态机、读档三步、原语族、版本迁移分派），随后执行项目级验收 AC1–AC6 全部通过。
+原因：19 卷清单缺口补齐；按 WORKFLOW Stage 7 要求做一次覆盖全项目的整体测试，而不只是各轮抽查。
+范围 / 文件：`docs/mechanisms/V16-save-and-serialization.md`、`state.md`
+操作详情：
+- 补写 V16（20 条 claim），修正两处自身错误：一处 Token 写作「附近」（改为实测 0x02000533），一处把 `ScribeMetaHeaderUtility` 误记为 static class（实为 `public class`）。
+- 验收统一用两个脚本：`verify-claims.ps1`（逐条断言语料核对）与 `lint-docs.ps1`（六节结构 / Mermaid 围栏 / 相对链接 / claim 完整性）。
+- AC3 用「重建索引后 SHA256 比对」验证可重建性。
+验证：
+- AC1 结构完整：docs=19，lint 0 error（exit=0）
+- AC2 断言全通：claims=397 pass=397 fail=0（exit=0）
+- AC3 索引可重建：types.tsv SHA256 重建前后一致 `D5C81E55…C96E5B81`（identical=True）
+- AC4 交叉引用零悬空：lint 相对链接检查 0 error
+- AC5 Mermaid 校验：46 个代码块，围栏全部闭合，0 error
+- AC6 记录一致：`project.log` 12 条实施型记录（R1–R11 + 环境/外部访问条目）、`logs/GATE.log` 逐轮一行、`state.md` 同步至本轮
+结果：19 卷全部交付；累计 397 条可核断言全部命中；语料 10463 文件与索引 11275 类型可一键重建。
+问题 / 后续：
+- `state.md` 此前快照时间滞后（12:33），已在收尾时更新。
+- 各卷 `Open questions` 合计 90+ 条未解项，均为**范围外的深挖点**（如 ShotReport 命中率分解、BackCompatibility 各转换器规则、QuestGen 脚本流程），不影响已交付结论的可核性。
+- 待用户确认项目关闭。
+----------------------------------------------------------------
+[2026-10-20T14:03:50+08:00] | 阶段：7 验收 | 轮次：R11 | 类型：检查（更正）
+
+概况：验收计数更正。R11 收尾时实测：文档 **4153 行**（此前表中 4147）、`V16` 实为 **212 行**（此前 205）、语料 **10456 文件 / 39.0 MB**（此前记 10463 / 39.7 MB）。
+原因：先前 10463 是在语料「双层嵌套」状态下统计（含被拍平前的重复工程文件），拍平后真实计数为 10456；文档行数按写入后实际内容重算。
+范围 / 文件：`state.md`（表格与参数）
+验证：`Get-ChildItem analysis/decompiled -Recurse -File -Include *.cs,*.il` 计数；各文档 `Get-Content` 行数合计。
+结果：已同步 `state.md`；claim 总数 397 不受影响，AC2 结论不变。
+问题 / 后续：无。
+----------------------------------------------------------------
+[2026-10-20T14:34:41+08:00] | 阶段：6 实施（新工作周期） | 轮次：R12 Open questions 收束 | 类型：实施 / 检查 / 决定
+
+概况：把 19 卷的 94 条 `Open questions` 全部编号、分类、给处置结论；其中 24 条当场解出（22 条完全解、1 条部分解、1 条解析式闭合），并在 10 卷中文档中原位回填 `## Resolved questions` 小节与证据 claim。
+原因：用户要求处理未解释的开放问题；此前各卷把不确定项写进 OQ 但未集中治理。
+范围 / 文件：`analysis/index/open-questions.tsv`（94 条 + 状态列）、`docs/mechanisms/{V01,V02,V03,V04,V05,V06,V07,V08,V10,V11,V12,V13,V14,V15,V17,V18}.md`（16 卷被编辑，新增 31 条 claim）
+操作详情：
+- 用脚本抽取全部 OQ 并编号（`V00-OQ01` … `V18-OQ05`），落盘为机器可读 TSV。
+- 按「静态可解 / 解析闭合 / 部分可解 / Waylith 语料阻塞 / 需运行 / 说明性」六类归档。
+- 逐条回填：新增 `## Resolved questions` 节（置于 `## Claims` 与 `## Open questions` 之间，不破坏 lint 的六节顺序检查）。
+验证：
+- `verify-claims.ps1` → claims=428 pass=428 fail=0（较 R11 的 397 增加 31 条新断言），exit=0
+- `lint-docs.ps1` → docs=19 claims=428 mermaid=46 errors=0，exit=0
+结果（本轮新解出的高价值结论）：
+- **物体 tick 频率取决于相机**：`Thing.UpdateRateTicks` 默认返回 `GenTicks.GetCameraUpdateRate(this)`——不在当前地图或不在视野 → 15；在视野内 → `(int)(CameraDriver.CurrentZoom + 1)`。覆盖者仅 `Pawn`（动物固定 15）、`Fire`、`PawnFlyer`、`Projectile`，另有 `Building` 覆写 `MinTickIntervalRate`。
+- **护甲是概率模型而非线性减免**（修正 V08 原表述）：穿甲先抵消护甲值，然后 `Rand.Value` 掷骰决定「完全弹开 / 减半（锐伤转钝伤）/ 原样命中」；衣物在判定前先吃 25% 伤害作为耐久消耗。
+- **疾病严重度每 200 tick 步进**：`0.0033333334f ≈ 200/60000`，即日变化量乘以「该步占一天的比例」。
+- **装库优先级只有两档**：`OverwritePriority = IsCoreMod ? 0 : 1`，核心模块由 `PackageId == "ludeon.rimworld"` 判定，mod 无法声明覆盖。
+- **决策顺序是短路优先级**：常驻树（精神状态/需求）先判、命中即返回，之后才走主动树 `MainThinkNodeRoot`。
+- **关系类型来自存储记录**（`RelationWith(other).kind`），不由好感阈值推导。
+- 个体意见有界 ±100，敌对时正面意见归零；`OpinionOf` 由亲属偏移 + 社交思想 + hediff 因子构成。
+- `fastEcology` 通过「时间跳跃 + 植物专用分支」把 2000 tick 节拍压成 1 tick。
+- 世界层 tick 在 `DoSingleTick` 中无条件执行，与当前地图无关，两层共用同一暂停闸门。
+- `Suspended` 在 Pawn 层叠加了「被任务预留」（`WorldPawnSituation.ReservedByQuest`）。
+- 需求量子（V05 遗留）与 `IsHashIntervalTick` 定义（V02 遗留）回填闭环。
+问题 / 后续：
+- 剩余 **60 条 phased** 属实质性深挖（如 QuestGen 脚本、DefInjectionPackage、BackCompatibility 转换器、仪式评分、机械族、PlanetLayer 太空层、ShotReport 分解等），需按卷分批继续。
+- **5 条 blocked-waylith**（`V00-OQ01/OQ04`、`V03-OQ01`、`V17-OQ04`、`V18-OQ05`）受引擎语料不完整限制，除非解决 dnSpy 卡死，否则静态不可达。
+- **4 条 runtime-only**（`V01-OQ02/OQ03`、`V07-OQ01`、`V17-OQ02`）需要运行测量，超出「纯静态解构」的项目规则。
+- **1 条 note**（`V00-OQ03`）是统计口径说明，非待解问题。
+- 建议下一轮 R13 处理 V09/V15/V16 三卷的 15 条（叙事者曲线、QuestGen、DefInjection、ScribeSaver、BackCompatibility）。
+----------------------------------------------------------------
+[2026-10-20T14:39:19+08:00] | 阶段：6 实施（新工作周期） | 轮次：R13 V09/V15/V16 收束 | 类型：实施 / 检查
+
+概况：R13 完成。解出 V09/V15/V16 三卷 15 条 phased 中的 12 条（10 条完全解、2 条部分解），新增 15 条 claim，三卷补 `## Resolved questions` 节。
+原因：延续 R12 的 OQ 收束；这三卷的问题都是「一次阅读即可定论」的高性价比项。
+范围 / 文件：`docs/mechanisms/V09-storyteller-and-quests.md`、`V15-def-and-xml-pipeline.md`、`V16-save-and-serialization.md`、`analysis/index/open-questions.tsv`
+验证：
+- `verify-claims.ps1` → claims=443 pass=443 fail=0（较 R12 的 428 增加 15 条），exit=0
+- `lint-docs.ps1` → docs=19 claims=443 mermaid=46 errors=0，exit=0
+结果（本轮关键结论）：
+- **难度改的是强度不是频率**：`threatScale` 出现在点数公式 `num4 × num5 × difficulty.threatScale × pointsFactorFromDaysPassed(定居天数)`，夹在 `GlobalPointsMin()` 与 10000 之间；频率侧只受类别开关与按事件的加权概率影响。
+- **单事件概率含反重复机制**：`IncidentChanceFinal` = 基础概率 × 当前人口因子 × 人口意图因子 × `ChanceFactorNow` × `RecentStoryWeightFactors[近期第 i 次]`，选中用 `RandomElementByWeightWithFallback`。
+- **事件候选取舍无全局排序**：按 `StorytellerComp` 分组的迭代器链，逐条 `TryFire`，先到先试。
+- **`parms.points` 只在类别需要时填**：`DefaultParmsNow` 里 `if (incCat.needsParmsPoints) parms.points = DefaultThreatPointsNow(target)`。
+- **三条曲线取点**：财富基础曲线 (0,0)(14000,0)(400000,2400)(700000,3600) —— **财富 ≤14000 时基础点数为 0**；每殖民者 (0,15)(10000,15)(400000,140)(1000000,200)；机械/次人类系数 0.2/0.2/0.3/0.4。
+- **补丁自检是纯自检**：`ErrorCheckPatches` 只收集 `ConfigErrors()` 打日志，不改文档；`TKeySystem` 用硬编码映射表。
+- **热重载是浅拷贝就地覆盖**：`MemberwiseShallowCopy` 保留 `shortHash`/`index`/`modContentPack`，旧对象改名 `_HotReloadedThrowaway` 丢弃 —— 快但可能残留旧引用。
+- **翻译注入与旧名兼容联动**：`BackCompatibleDefName(..., forDefInjections: true, ...)` 是注入专用入口。
+- **延迟引用键是 `(父对象, 相对路径)` 元组**，单引用与列表各一张字典，读写两侧用同一键。
+- **版本迁移是「按版本自判 + 按对象改写」的转换链**：每个转换器先 `AppliesToLoadedGameVersion` 再执行，另有 `PostExposeData(obj)` 逐对象钩子。
+- **`ScribeSaver` 是 loader 的镜像**：`InitSaving → EnterNode/ExitNode → WriteElement/WriteAttribute → FinalizeSaving`，另有 `savedNodes` 去重与 `loadIDsErrorsChecker`。
+- **地图压缩**：`MapFileCompressor` 实现 `IExposable`，`BuildCompressedString` / `ThingsToSpawnAfterLoad`，判据 `CompressibilityDecider`。
+问题 / 后续：
+- 剩余 **48 条 phased**（V06/V08/V10/V12/V13/V14 各 4 条为主），以及 **3 条 resolved-partial**（QuestGen 节点树、DefInjection 触发时机、InitPriceDataIfNeeded 内容）。
+- 建议下一轮 R14 攻 V13/V14 各 4 条（思想老化、灵感模型、伤口自愈、HediffSet 去重、BodyDef 身体树、成瘾/戒断），这批同属医疗与心情主链，能同步加强 V14 缺口。
+----------------------------------------------------------------
+[2026-10-20T14:43:37+08:00] | 阶段：6 实施（新工作周期） | 轮次：R14 V13/V14 收束 | 类型：实施 / 检查
+
+概况：R14 完成。解出 V13（需求/心情）与 V14（医疗/基因）共 7 条（6 完全解 + 1 部分解），新增 16 条 claim。
+原因：这两卷的 phased 项集中在「软状态与健康」主链，一次取证可同时加强两卷。
+范围 / 文件：`docs/mechanisms/V13-needs-and-mood.md`、`docs/mechanisms/V14-medical-and-genes.md`、`analysis/index/open-questions.tsv`
+验证：
+- `verify-claims.ps1` → claims=459 pass=459 fail=0（较 R13 的 443 增加 16 条），exit=0
+- `lint-docs.ps1` → docs=19 claims=459 mermaid=46 errors=0，exit=0
+结果（本轮三条修正性结论）：
+- **需求不是统一模型**：只有 `Need_Beauty`/`Need_Comfort`/`Need_Mood`/`Need_RoomSize` 继承 `Need_Seeker`；150 tick 量子只适用于 `Need_Food` 与 `Need_Chemical`；`Need_Authority` 用 400 作除数；`Need_Deathrest`/`Need_Indoors`/`Need_Chemical_Any` 各自实现。此前「需求统一 150 tick」的说法被修正为「食物与化学如此」。
+- **精神状态不由 `MentalStateHandler` 触发**：它只推进已有状态（外加倒地强制恢复）；真正触发在 `Verse.AI.MentalBreaker.MentalBreakerTickInterval` → `TryDoRandomMoodCausedMentalBreak`，阈值按 `MentalBreakIntensity` 分档（Extreme/Major/Minor），是「阈值 + 随机」组合而非纯确定性。
+- **伤口自愈没有专门覆写**：`Hediff_Injury` 不覆写 `TickInterval`，走通用 `HediffComp_SeverityPerDay` 负向通道；留疤由 `HediffComp_GetsPermanent` 决定；`Severity` 到健康的换算系数是 `75f × HealthScale`。
+其余结论：
+- 记忆老化走 `ThoughtInterval` → `MemoryThoughtInterval`；过期判据 `!permanent && age > DurationTicks`，且过期时若 `nextThought` 存在会被**替换成后继思想**（记忆升级链）。
+- `HediffSet.AddDirect` 的合并是「逐条 `TryMergeWith`，任一接受即不新增」，合并策略定义在各 hediff 类型里，不在集合统一处理；缺失部位上拒绝追加 hediff。
+- 身体部位是树（`GetPartAndAllChildParts`），缺失判定沿祖先链（`PartOrAnyAncestorHasDirectlyAddedParts`），装假肢的整条子树视为已有替代。
+- 成瘾 hediff 持有 `Need_Chemical`（由 `chemicalNeed` 反查）与 `ChemicalDef`（按名解析）；`Withdrawal` 是需求档位而非独立 hediff。
+问题 / 后续：
+- 剩余 **41 条 phased**，大宗在 V06/V08/V10/V12（各 4 条）与 V02/V03/V04/V07/V11/V18（各 3 条）。
+- `V14-OQ01` 记为 resolved-partial：自愈通道已定性，具体速率取决于各伤 Def 配置（数据面）。
+- 建议下一轮 R15 处理 V06/V08 的 8 条（ThinkNode 子类、DriverTick 分工、atomicWithPrevious 中断、精神状态与 JobTracker 先后、ShotReport 分解、CoverUtility、DamageWorker 子类、近战差异）。
+----------------------------------------------------------------
+[2026-10-20T14:47:26+08:00] | 阶段：6 实施（新工作周期） | 轮次：R15 V06/V08 收束 | 类型：实施 / 检查
+
+概况：R15 完成。解出 V06（AI/任务）与 V08（战斗）共 8 条 phased，全部为完全解；新增 14 条 claim；同时修掉一处 lint 误报。
+原因：这两卷是「AI + 战斗」主链的最后缺口。
+范围 / 文件：`docs/mechanisms/V06-ai-and-jobs.md`、`docs/mechanisms/V08-combat-and-damage.md`、`scripts/lint-docs.ps1`、`analysis/index/open-questions.tsv`
+验证：
+- `verify-claims.ps1` → claims=473 pass=473 fail=0，exit=0
+- `lint-docs.ps1` → docs=19 claims=473 mermaid=46 errors=0，exit=0
+结果：
+- **ThinkNode 是顺序优先级列表**：`ThinkNode_Priority` 顺序遍历子节点，返回第一个非空结果；`ThinkNode_Conditional` 是装饰器基类（上百个具体条件类）。
+- **`DriverTick` 管完成时机、`DriverTickInterval` 管摊销逻辑**：前者维护 `ticksLeftThisToil` 与 `ToilCompleteMode`；后者执行 `preTickIntervalActions(delta)`。
+- **`atomicWithPrevious` 是逐 toil 显式开启**（Ingest/GiveToPawn/搬运尸体/备货等驱动），不是全局默认。
+- **区间顺序：jobs → health → mindState → carry**，即同区间内先推进 Job，再由心理状态决定中断。
+- **ShotReport 是六因子相乘**（射手+距离、武器、目标体型、掩体遮挡、姿态、处决），对外给 `AimOnTargetChance` / `PassCoverChance` / `TotalEstimatedHitChance` 三层读数。
+- **掩体只改命中率不改伤害**：`CoverUtility` 提供遮挡物集合、总体遮挡率、单体基础遮挡值与周边评分。
+- **受伤部位选择**在 `DamageWorker_AddInjury.ChooseHitPart`：按伤害 Height/Depth 在「未缺失部位」中随机；多部位扩散由 `DamagePropagationPartsRange` 控制，过度击杀有保护。
+- **近战无抛射物阶段**：`Verb_MeleeAttack` 只覆写 `TryCastShot`，命中即结算。
+问题 / 后续：
+- **修掉一处 lint 误报**：claim 的 `match:` 行里出现 `A[i](delta)` 这类代码片段时，被 markdown 链接正则误判为相对链接。已在 `lint-docs.ps1` 中跳过 `src/file/match/anchor/note` 字段行的链接扫描（工具缺陷修正，非放宽校验）。
+- 剩余 **33 条 phased**，大宗在 V10/V12（各 4 条）与 V02/V03/V04/V07/V11/V18（各 3 条）。
+- 建议下一轮 R16 攻 V10/V12 的 8 条（WorldObject 分类型推进、远行队移动成本模型、远行队遇袭切图、PlanetLayer 太空层、MarketValue stat 本体、StockGenerator、trader tracker 差异、发射费用）。
+----------------------------------------------------------------
+[2026-10-20T14:51:19+08:00] | 阶段：6 实施（新工作周期） | 轮次：R16 V10/V12 收束 | 类型：实施 / 检查
+
+概况：R16 完成。解出 V10（世界/远行队）与 V12（经济/贸易）共 8 条 phased，全部完全解；新增 14 条 claim。
+原因：世界层与贸易是 OQ 里最后两簇「一次取证可定论」的条目。
+范围 / 文件：`docs/mechanisms/V10-world-and-caravans.md`、`docs/mechanisms/V12-economy-and-trade.md`、`analysis/index/open-questions.tsv`
+验证：
+- `verify-claims.ps1` → claims=487 pass=487 fail=0，exit=0
+- `lint-docs.ps1` → docs=19 claims=487 mermaid=46 errors=0，exit=0
+结果：
+- **世界对象与 Thing 同构**：`WorldObject` 也有 `UpdateRateTicks` / `DoTick` / `Tick` / `TickInterval`；`Settlement` 覆写 `TickInterval`（活跃模拟），`Site` 只覆写表现层成员——所以「地点静态、定居点活跃」是结构性的。
+- **远行队移动成本**：无队默认 **3300 tick/格**；穿梭机 **0**；常规由三组输入决定——人形基数、坐骑速度因子（`CaravanRidingSpeedFactor` 排序取前 N 求均值，不足补 1.0）、负重比（`massUsage`/`massCapacity`）。
+- **层面是带代价的连接图**：`PlanetLayer.AddConnection(target, cost)` / `HasConnectionFromTo` / `PlanetLayerConnection` + `MarkRootSurface`；「太空层」不是特例代码，而是图上的另一节点。
+- **攻城/遇袭的切图点**：`CaravanArrivalAction_AttackSettlement.Arrived` → `SettlementUtility.Attack(caravan, settlement)`——由抵达行动移交地图侧，而非 Caravan 自身切图。
+- **物品价格是配方成本法**：`StatWorker_MarketValue` 累加材料成本（`CostStuffCount / VolumePerUnit × 材料单价`）、产物成本与固定额，除以产量；质量/材料由 `StatPart_Quality` / `StatPart_Stuff` 追加修正。
+- **库存生成无定时器**：`StockGenerator.GenerateThings(PlanetTile, Faction)` 是抽象按需生成，交易会话构建时现算，不存在「定期刷新」独立 tick。
+- **两类商人载体不同**：`Pawn_TraderTracker` 用自身 `Goods`（随身）且有 `RandomPriceFactorSeed` 使价格波动可按个体复现；`Settlement_TraderTracker` 用 `StockListForReading` 列表。
+- **发射费用只透传**：`LaunchSilver(map, fee)` → `LaunchThingsOfType(Silver, fee, map, null)`，与距离/重量无关。
+问题 / 后续：
+- 剩余 **25 条 phased**，集中在 V02/V03/V04/V07/V11/V18（各 3 条）+ V05/V13/V15/V16/V17（各 1–2 条）。
+- 一处工具事实：`ops_replace` 的 pattern 是**字面量匹配**（非正则），带 `\.` 转义会匹配不到；本轮修正 `Settlement_TraderTracker` 路径时踩到，已改用字面量。
+- 建议下一轮 R17 收尾 V02/V03/V04/V07/V11/V18 的 18 条 + 其余 7 条，把 phased 清零或只剩硬约束。
+----------------------------------------------------------------
+[2026-10-20T14:55:14+08:00] | 阶段：6 实施（新工作周期） | 轮次：R17 OQ 收尾 | 类型：实施 / 检查 / 决定
+
+概况：R17 完成，**phased 清零**。本轮解出 13 条完全解 + 7 条部分解，并把 4 条重分类为 `deferred-scope`（独立子系统级工作量）。累计 claim 505，全部命中。
+原因：收掉 OQ 表最后 25 条 phased，使每条 OQ 都有明确处置结论。
+范围 / 文件：`docs/mechanisms/{V00,V02,V03,V04,V05,V07,V11,V13,V16,V17,V18}.md`（11 卷）、`analysis/index/open-questions.tsv`
+验证：
+- `verify-claims.ps1` → claims=505 pass=505 fail=0，exit=0
+- `lint-docs.ps1` → docs=19 claims=505 mermaid=46 errors=0，exit=0
+- OQ 登记表最终分布：resolved 68 / resolved-partial 11 / blocked-waylith 5 / deferred-scope 4 / runtime-only 4 / note 1 / resolved-analytic 1 = **94，phased 归零**
+结果：
+- 场景切换 = `GenScene.GoToMainMenu` + `Root.Start` 按 `GenScene.InPlayScene` 选 UI 根。
+- 季节权重是六出参（四季 + 常夏 + 常冬），极地不是特殊分支；开局 tick 缓存以「地块 + 季节」为键只存一条。
+- `Twelfth` 是 `First`…`Twelfth` + `Undefined`，命名不含季节语义。
+- `mapIndexOrState` 实为 `sbyte`，负值当哨兵；容量问题不构成实际约束。
+- `Pawn.TickInterval` 尾段还有 apparel/interactions/caller/skills/drafter/relations/psychicEntropy/guest/ideo 九个区间钩子。
+- 生产模式 = 模式枚举 + 目标数 + 暂停位（非状态机）；工作量来自配方，账单层不折减技能。
+- 互动频率 = 320 tick 冷却 + 60 tick 哈希；好感「回归自然」带宽是 ±50（非全局硬夹 100）。
+- 灵感由 `TryStartInspiration` 显式开启；区域危险度按 tick + pawn 双级缓存。
+- 存档元数据头写 `modIds`/`modSteamIds`/`modNames`，读档比对得 `modListChanged` 布尔，模组变化不直接触发迁移。
+- 窗口栈在点击落空时吞掉鼠标事件；仪式质量是外部入参；机械师是「控制组 + 带宽」追踪器。
+- **搬运「预留格」不是独立机制**：`JobDriver_HaulToCell` 同时预占「目的地格 + 物品」各 maxPawns=1，靠通用保留系统；`SlotGroup` 只管格子集合。
+问题 / 后续：
+- 4 条 `deferred-scope`：`V03-OQ03`（Pathing 代价传播）、`V03-OQ05`（Room 围合）、`V11-OQ05`（Ideology 改写社交）、`V17-OQ03`（PawnRenderTree 643 行）—— 均属独立子系统级，需以新卷形式处理。
+- 5 条 `blocked-waylith` 与 4 条 `runtime-only` 属硬约束（引擎语料缺失 / 需运行测量），保持现状。
+- 11 条 `resolved-partial` 已有定性结论，剩余细节多为数据面（Def 数值）或尚未逐行读的次要分支。
+- 建议：OQ 收束周期到此结束，可回到 Stage 8 交付/关闭确认。
+----------------------------------------------------------------
+[2026-10-20T15:55:26+08:00] | 阶段：6 实施（新卷周期） | 轮次：R18 新增 V19–V21 | 类型：实施 / 检查 / 决定
+
+概况：按 `deferred-scope` 处置新建三卷并交付：`V19` 空间构建（代价传播 + 房间围合）、`V20` Ideology 社会改写、`V21` 渲染树。4 条 deferred OQ 全部转为 resolved；文档数 19→22，claim 505→522。
+原因：上一轮把 4 条 OQ 判为「独立子系统级」，需以新卷形式处理，而不是塞进既有卷的 Resolved 小节。
+范围 / 文件：
+- 新增 `docs/mechanisms/V19-space-construction.md`、`V20-ideology-social.md`、`V21-render-tree.md`
+- 更新 `01_PROJECT_PLAN.md`（卷表追加 V19–V21，范围 19→22 卷）、`docs/mechanisms/V00-overview.md`（主链挂点表追加三行）
+- 更新 `analysis/index/open-questions.tsv`
+验证：
+- `verify-claims.ps1` → claims=522 pass=522 fail=0，exit=0
+- `lint-docs.ps1` → docs=22 claims=522 mermaid=50 errors=0，exit=0
+结果（本轮关键结论）：
+- **路径代价传播不外扩**：`RecalculatePerceivedPathCostUnderThing` 只重算物体 `OccupiedRect` 内的格（1×1 即单格），另把占用矩形作为 cell delta 通报给寻路数据层；不做相邻/对角线扩散。早退条件是 `pathCost==0 且非 Impassable`。
+- **房间不是几何围合出来的**：`Region.Room` 转发 `District.Room`；`Room.MakeNew` 分配 ID + `RoomTempTracker` 并登记 `roomLookup`；`AddDistrict` 在首个区群加入时才 `regionGrid.RoomAdded`。「真房间」判据 = **不触地图边缘** 且 **至少一个 `RegionType.Normal` 区群**（`Room.ProperRoom`）。
+- **Ideology 改写社交是三通路**：① 直接门控 `InteractionWorker_ConvertIdeoAttempt`（`IdeologyActive` 才跑）；② 主导通路是 戒律 → 思想 → `TotalOpinionOffset` → `OpinionOf` → 互动权重/招募抵抗度（恋爱/求婚/分手/招募都吃意见）；③ 派系层 `PreceptComp_GoodwillSituation`。所以它并不在 `RandomSelectionWeight` 里查戒律，而是隔了两层。
+- **渲染树是懒初始化 + 脏重建的数据驱动节点树**：`EnsureInitialized(flags)` 首建、`SetDirty()` 重建、`ShouldAddNodeToTree(props)` 过滤、`TryGetNodeByTag` 标签定位、`TryGetMatrix` 逐节点求变换；节点类型由 `PawnRenderNodeProperties_*` 子类表达（Carried/Overlay/Parent/Eye/Swaddle…）。
+问题 / 后续：
+- 三卷各记入 3–4 条新 Open questions（RoomStat 聚合、PathingContext 分层公式、意见→权重曲线取点、PawnRenderTreeDef 布局、Waylith 侧并行度等），合计 11 条，属新一轮的深挖点。
+- OQ 总账：resolved 72 / partial 11 / blocked 5 / runtime 4 / note 1 / analytic 1 = 94，**deferred-scope 清零**。
+----------------------------------------------------------------
+[2026-10-20T16:19:44+08:00] | 阶段：6 实施（引擎语料修复） | 轮次：R19 Waylith 反编译重试与修复 | 类型：实施 / 检查
+
+概况：重试 Waylith.dll 反编译并定位卡点：**`Waylith.Rendering.Bc7BlockEncoder`（RID 56，190 个方法）**。改用「逐类型提取 + 超时 + IL 回退」后语料从 439 文件补全到 **887/887 类型**（1322 个 `.cs` + 1 个 `.il`，10.4 MB）。
+原因：用户要求重试并说明在哪一步出问题；此前仅记录「dnSpy 稳定卡死」，未定位到类型。
+范围 / 文件：新增 `scripts/{decompile-diagnose,list-types-meta,dump-waylith}.ps1`、`analysis/index/waylith-types.tsv`；补全 `analysis/decompiled/Waylith/**`；更新 `README.md`、`docs/mechanisms/V00-overview.md`、`analysis/index/open-questions.tsv`
+操作详情（诊断链）：
+1. 第一次重试失败在**启动方式**上：`Start-Process -NoNewWindow` 抛 `Item has already been added. Key: 'NO_PROXY' / 'no_proxy'`（本机环境存在大小写重复的代理变量，Windows PowerShell 5.1 的环境字典因此不可用；连 `Get-ChildItem Env:` 也会报同一错）。改为用调用运算符直接启动即绕过。
+2. 用调用运算符重试：默认多线程 → **439 文件后停住**（约 17 s 内写完 439 个，之后不再新增），进程仍存活。
+3. 加 `--threads 1` 重试：**56 文件后停住**，但 CPU 从 33.8 s 涨到 109.5 s（60 s 墙钟）→ 排除死锁，判定为**类型级病态循环**。
+4. 关键证据：两次运行的输出目录里都留下同一个 **0 字节文件** `Waylith\Rendering\Bc7BlockEncoder.cs` —— 卡死时正在写的那个类型。
+5. 类型清单佐证：PowerShell 7 自带的 `System.Reflection.Metadata` 是**不含类型的 facade**（`LoadFrom` 被同身份绑定），改用**私有 AssemblyLoadContext 加载 .NET 10 共享框架里的真实现**才拿到清单；随后修正两处 API 误用（`PEReader` 在 `System.Reflection.PortableExecutable` 而非 `.Metadata`；`GetMetadataReader` 是扩展方法）→ 得到 887 个 TypeDef 及 RID/方法数。
+6. 定向验证：`-t Waylith.Rendering.Bc7BlockEncoder` **>30 s 超时挂死**；相邻类型 `Bc7PackFlags` 0.7 s、`BcRdo` 1.2 s 正常；最重的对照类型 `GpuTextureService`(153 方法) 4380 行、`Material`(111) 1520 行均在 20 s 内完成 → 病态性只属于这一个类型。
+7. 回退验证：同一类型 `-l IL -t` 正常输出 **31207 行 IL**（1.9 MB）→ 问题在 ILSpy 的 C# 反编译前端，而非元数据或文件损坏。
+修复：新增 `scripts/dump-waylith.ps1`（逐类型 `-t` + 20 s 超时 + IL 回退 60 s），跑完 887 类型：`cs=884 il=1 skipped=2 failed=0`；去掉 0 字节残留后 1323 文件；按元数据清单核对 **missing_files=0**。
+验证：
+- `verify-claims.ps1` → claims=522 pass=522 fail=0
+- `lint-docs.ps1` → docs=22 mermaid=50 errors=0
+- 语料覆盖：887/887 类型
+结果（附带收获）：
+- 调用面统计：`Assembly-CSharp` 引用 `Waylith` 仅 53 处 / 29 文件（Profiling 17、Rendering.Texture2D 11、Rendering 9…）；`UnityStubs` 212 处（VertexAttribute 32、Rendering 29、UnityCompat 27、Audio 12、Shader 11）。887 个引擎类型里游戏逻辑只按名引用约 20 个。
+- OQ 登记表：`V00-OQ01`（语料不全）与 `V00-OQ04`（调用面统计）转为 resolved；`V03-OQ01`/`V17-OQ04`/`V18-OQ05` 由 `blocked-waylith` 改为新状态 `unblocked-phased`（阻塞解除，待读）。
+问题 / 后续：
+- 新状态统计：resolved 74 / partial 11 / unblocked-phased 3 / runtime-only 4 / note 1 / analytic 1 = 94。
+- 下一轮可读 `Bc7BlockEncoder` 的 IL 与引擎主循环（`Waylith.EngineApplication` 1651 行已落地），把 V17 的「引擎侧逐帧调用链」补上。
+----------------------------------------------------------------
+[2026-10-20T16:24:59+08:00] | 阶段：6 实施（引擎解构） | 轮次：R20 引擎主循环与作业并行度 | 类型：实施 / 检查
+
+概况：R20 完成两项此前被判 `blocked-waylith` 的问题：`V17-OQ04`（引擎侧真正的帧源与绘制提交）与 `V03-OQ01`（作业调度真实并行度）。语料补全后两条都不再阻塞，直接读通并转为 claim。
+原因：R19 已解除语料阻塞，用户确认继续读这两条。
+范围 / 文件：`docs/mechanisms/V17-ui-and-rendering.md`、`docs/mechanisms/V03-map-and-pathfinding.md`、`analysis/index/open-questions.tsv`
+验证：
+- `verify-claims.ps1` → claims=533 pass=533 fail=0（较 R19 增 11 条）
+- `lint-docs.ps1` → docs=22 mermaid=50 errors=0
+结果（引擎侧首次有直接证据）：
+- **帧源**：`EngineApplication.RunLoop()` 是主线程 `while (!Window.ShouldClose)` 循环，delta 由 `Stopwatch` 差值给出（`num2 = _stopwatch.Elapsed.TotalSeconds`、`num3 = num2 - num`），随后 `EngineApplication.BeginFrame(num3, num2)` → `Time.BeginFrame` 写 `Time.DeltaTime` / `Time.Elapsed`，帧尾 `EndFrame()` 使 `Time.FrameCount++`。
+- **绘制在独立渲染线程**：进循环前 `new RenderThread(RenderContext, FrameRenderer)` 并 `Start()`；主线程每帧只 `DrainRenderThreadCallbacksOnMainThread()` 并把 `FrameTiming(FrameCount, delta, elapsed)` 交给渲染线程。至此 `UnityEngine.Time.deltaTime` → `UnityStubs.UnityRuntime` → `Waylith.Time.DeltaTime` → Stopwatch 的链路完整闭合。
+- **作业并行度**：`WaylithJobRuntime` 自建线程池 = `Math.Max(1, Environment.ProcessorCount - 1)` 个后台线程（`IsBackground=true`、`Priority=AboveNormal`），不依赖 .NET ThreadPool；对外 `BeginFrame(frameIndex)` + `For(array/list/range, action, batchSize)` + 结构化 `For<TJob>(job, iterationCount, batchSize) where TJob : struct, IWaylithParallelForJob`。寻路的 `JobHandle` 即落在此池上，按 batchSize 切分迭代。
+问题 / 后续：
+- 剩余 `unblocked-phased` 仅 1 条：`V18-OQ05`（Odyssey 太空层/`Gravship` 起降），语料已具备，可随时读。
+- 新的引擎侧 Open questions：渲染线程与主线程的同步原语（`RenderThread` 内部）、`FrameRenderer` 的命令录制方式、`FramesInFlight` 与呈现队列的关系，均已在两卷 Open questions 中登记。
+----------------------------------------------------------------
+[2026-10-20T16:28:37+08:00] | 阶段：6 实施（引擎解构） | 轮次：R21 V18-OQ05 太空层与 Gravship | 类型：实施 / 检查
+
+概况：R21 解出最后一条 `unblocked-phased`：`V18-OQ05`（Odyssey 太空层 / `Gravship` 起降）。新增 11 条 claim，OQ 表中已无 blocked / phased / deferred 项。
+原因：用户指定读取该条；语料在 R19 已补全。
+范围 / 文件：`docs/mechanisms/V18-dlc-mechanics.md`、`analysis/index/open-questions.tsv`
+验证：
+- `verify-claims.ps1` → claims=544 pass=544 fail=0（较 R20 增 11 条）
+- `lint-docs.ps1` → docs=22 mermaid=50 errors=0
+结果：
+- **层是数据定义的**：`PlanetLayerDef` 用 `SurfaceTiles` / `isSpace` / `canFormCaravans` / `rangeDistanceFactor` / `alwaysRaycastable` / `obstructsExpandingIcons` 描述性质，并用五个 `onlyAllowWhitelisted*` 对事件、生物群系、天气条件、任务、抵达方式做白名单门控；层间迁移走 V10 的连接图。
+- **`Gravship` 是「地图 ↔ 世界」双态对象**：由地图上的引擎构造（`Gravship(Building_GravEngine)`）；起飞 `InitiateTakeoff(engine, targetTile)` → `RemoveGravshipFromMap` 摘出地图 → `BeginTakeoffCutscene`；降落 `InitiateLanding(gravship, map, landingPos, landingRot)` 精确到格与朝向。
+- **起降是固定 10 秒过场，且过场硬暂停游戏时间**：`num = Clamp01(1 - timeLeft/10)`、`timeLeft -= Time.deltaTime`（受帧率影响），`Prefs.GravshipCutscenes` 可跳过；过场期间静态 `cutsceneInProgress` 为真，而 `TickManager.ForcePaused` 正式把该状态列为强制暂停条件（V01）—— 即**暂停由表现层状态位直接驱动**。
+- 整段逻辑在 `WorldComponentUpdate` 入口被 `if (!ModsConfig.OdysseyActive) return;` 短路，印证 V18 的「前置判断 + 就地注入」结论。
+问题 / 后续：
+- OQ 最终分布：resolved **77** / resolved-partial 11 / runtime-only 4 / note 1 / resolved-analytic 1 = 94；blocked、phased、deferred 全为 0。
+- 剩余 11 条 partial 的细节多在 Def 数据面（数值/曲线取点），4 条 runtime-only 需实测；二者都不属「解释缺失」。
+----------------------------------------------------------------
+[2026-10-20T16:31:45+08:00] | 阶段：6 实施（引擎运行模式） | 轮次：R22 新增 V22 | 类型：实施 / 检查
+
+概况：新增并交付 **V22「Waylith 引擎运行模式」**——把引擎从「游戏的外部依赖」提升为研究对象：进程启动链、三线线程拓扑、单帧时序、渲染线程的消费者协议、跨线程错误回传、以及有界队列形成的背压。新增 20 条 claim。
+原因：用户要求单开一卷研究引擎运行模式；R19 已补全 Waylith 语料（887/887），本轮结论直接来自引擎源码。
+范围 / 文件：新增 `docs/mechanisms/V22-waylith-runtime.md`；更新 `01_PROJECT_PLAN.md`（卷表追加 V22）、`docs/mechanisms/V00-overview.md`（主链挂点表追加 V22）
+验证：
+- `verify-claims.ps1` → claims=564 pass=564 fail=0（较 R21 增 20 条）
+- `lint-docs.ps1` → docs=23 mermaid=53 errors=0
+结果（引擎运行模式的关键结论）：
+- **启动链**：`Run` 先 `EngineSwitches.Apply` + `RestartManager.WaitForPrecedingInstanceExit`（单实例握手）→ `using (ProcessLifetime.Create(...))` → ``new EngineApplication(options)`` → `initialize(app)` → `RunLoop()`；异常走 `CrashReporter.TryWriteReport` + `CrashDialog.TryShow`。
+- **三线线程拓扑**：主线程（逻辑 + 帧捕获，安装 `MainThreadSynchronizationContext`）、渲染线程（`RenderThread`）、作业线程池（`核数-1`，`AboveNormal`）；GLFW 事件轮询仍在主线程。
+- **单帧时序**：泵回调（`Pump`）→ 游戏更新（`OnUpdate`）→ 捕获帧（`CaptureFrame`）→ 投递（`Enqueue`）→ `EndFrame`。顺序保证「逻辑不会看到半帧状态」。
+- **渲染线程协议**：`BlockingCollection<RenderFrame>`（容量 = `FramesInFlight`）消费循环；每帧 finally 里 `NotifyRenderThreadFrameEnded` + 未保留则 `Dispose` + `MarkFrameComplete`；异常用 `ExceptionDispatchInfo` 捕获并 `CompleteAdding`，由主线程 `ThrowIfFaulted` 抛出——**错误跨线程回传**。
+- **背压**：`_pendingFrames` + `ManualResetEventSlim _idle`（初始置位）；`MarkFramePending` Reset、`MarkFrameComplete` 归零 Set；`WaitUntilIdle` 只在生产者线程语义安全。队列满时 `Enqueue` 阻塞主线程 → 与 GPU 队列深度天然耦合；另有显式 `ThrottleToTargetFrameRate`。
+- **最小化路径**：不捕获帧，改为 `RetireGpuResourcesWithoutRendering` + 限速，而不是空转。
+问题 / 后续：
+- V22 记入 5 条 Open questions：队列满触发条件、两条回调路径的合并顺序、交换链/呈现细节、音频线程归属、`ThrottleToTargetFrameRate` 算法。
+- 项目终态：**23 卷 / 564 条断言**；OQ 94 条（resolved 77 / partial 11 / runtime-only 4 / note 1 / analytic 1）。
+----------------------------------------------------------------
+[2026-10-20T16:43:44+08:00] | 阶段：6 实施（OQ 补齐） | 轮次：R23 全场 OQ 清理 | 类型：实施 / 检查
+
+概况：把全项目 OQ 从「94（19 卷）」重新盘点为「**111（23 卷，含 V19–V22 新增）**」，本轮解出 **21 条**（12 + 3 + 6 三批），并把 5 条明确归为 runtime-only。终态：resolved **98** / resolved-partial 6 / runtime-only 5 / note 1 / resolved-analytic 1 —— **无 blocked、无 phased、无 deferred、无「未处置」**。
+原因：用户要求补全目前可解决的 OQ。
+范围 / 文件：`docs/mechanisms/{V03,V07,V11,V12,V13,V19,V20,V21,V22}.md`（9 卷新增 Resolved 小节）、`analysis/index/open-questions.tsv`（重建为 111 条）
+验证：
+- `verify-claims.ps1` → claims=**596** pass=596 fail=0（较 R22 增 32 条）
+- `lint-docs.ps1` → docs=23 mermaid=53 errors=0
+结果（本批新解出的结论要点）：
+- **V22 限速是「睡眠 + 忙等」混合**：`Thread.Sleep((剩余-1ms))` 后空转补齐；**音频无自建线程**（`AudioBackend` 为抽象类，`new Thread` 只出现在作业池与诊断窗口）；**两条回调路径**分工明确（`ConcurrentQueue` 通道 vs `AddNextFrameCallback` 的 CAS 合并委托）；**呈现动作以委托注入**（`SubmitGraphicsAndPresent(..., Func<VkResult> present)`），设备层不管交换链时序。
+- **V21 的 "ParallelPreDraw" 不是多线程**（修正性）：名字指「与上传并行的准备阶段」，实现是单线程顺序遍历 `drawRequests`；**动画与矩阵两段合成**（按 `Props.tagDef` 取动画部件，矩阵单独求）；**渲染树 Def 是单根嵌套**（`PawnRenderTreeDef.root`）；**DLC 节点是 10 个具名子类**（Tattoo/Overlay/Swaddle/Bulbfreak/Nociosphere…），非插件式扩展。
+- **V20 的「意见→权重」是分段线性**（`Mathf.InverseLerp` 双向映射，非 SimpleCurve）；**好感情境组件是纯数据挂载**（只有 `goodwillSituation` 字段，公式在 manager）；**拒绝类戒律挂在历史事件钩子**（`MemberWillingToDo`），社交影响是间接的；**基因因子逐 Def 而非逐 xenotype**（`missingGeneRomanceChanceFactor`）。
+- **V19 多层代价由 Def 语义声明**（`PathGridDef.fencePassable` / `flying` + 共用 `PathGrid` 实现）；**房间重建有全量/增量两条路径**（`RebuildAllRegionsAndRooms` / `TryRebuildDirtyRegionsAndRooms`）；**房间数值是 DefMap 惰性缓存**（`GetStat` 先 `UpdateRoomStatsAndRole`，无区域用 `roomlessScore`）；**`IsHuge` 阈值 60 个区群**、`IsPrisonCell` 为缓存字段。
+- **V12 价格惰性定死**（`InitPriceDataIfNeeded` 首次算完即整场不变；货币双向=面值）；**V07 配方工作量不含技能系数**（折减在执行侧）；**V11 好感硬夹 ±100 在变更入口**（与 ±50 回归带宽是两回事）；**V13 灵感时长属数据面**；**V03 危险上限经 `TraverseParms` 传入**（区域算危险、可达性做过滤）。
+问题 / 后续：
+- 剩余 6 条 resolved-partial 的细节在 Def 数据面或次要分支（QuestGen 节点树、DefInjection 触发时机、头衔↔需求、伤口速率、ThingOwner 递归保护、ReservationManager 裁决）。
+- 5 条 runtime-only 需实际运行测量（抖动静界、双闸门先后、scanner 成本、IMGUI 重入、队列满语义）。
+----------------------------------------------------------------
+[2026-10-20T16:54:56+08:00] | 阶段：7 回测 | 轮次：R24 全量源码回测（V00–V22） | 类型：检查 / 修正
+
+概况：新增 `scripts/backtest.ps1`，用三条**独立于语料**的通道回测全部规则：① 13 条黄金规则直接 `dnSpy -t` 从 DLL 重编译比对；② 596 条 claim 按其所属类型重新从 DLL 反编译后逐字核对（167 类型，全量非抽样）；③ 完整性（语料计数、Waylith 887 覆盖、文档/claim 普查）。结果 **pass=182 fail=0**。
+原因：用户要求「按源码验证从 V00 到 V22 所有已生成的规则」。
+范围 / 文件：新增 `scripts/backtest.ps1`；修正 `docs/mechanisms/V00-overview.md`（语料/类型计数）、`state.md`（heavy 与索引计数）
+验证：
+- `backtest.ps1 -SampleTypes 9999` → GOLDEN 13/13 PASS；SAMPLE 167 类型全 PASS（覆盖 596 claim）；INTEGRITY 全 PASS；**pass=182 fail=0**，exit=0
+- `verify-claims.ps1` → claims=596 pass=596 fail=0
+- `lint-docs.ps1` → docs=23 mermaid=53 errors=0
+回测中发现并修掉的 3 个自身缺陷：
+1. **backtest 脚本中文标签**：无 BOM 的 UTF-8 脚本被 PS 5.1 按 GBK 解码 → 引号错位直接解析失败（AGENTS.md §6 第二类的实例）。改为纯 ASCII 标签后通过。
+2. **claim 路径未剥前缀**：`file:` 里是 `analysis/decompiled/...`，索引键是 `Assembly-CSharp\...` → 首轮映射到 0 个类型（采样形同空跑）。加一步 `-replace '^analysis\decompiled\', ''` 后映射 167 类型。
+3. **索引落后于语料**：`types.tsv` 仍是 R19 补全前的 10446 条（Waylith 只有旧 439 文件的类型）。重跑 `list-types.ps1` → **12234 类型**（Waylith 1594），语料 11340 文件。连带把 `V00` 与 `state.md` 里 11275 / 10456 / 39.0 MB 的旧计数校正为 12234 / 11340 / 45.6 MB。
+结果（回测结论）：
+- **零漂移**：596 条规则全部在「重新从二进制反编译」的输出里逐字命中，说明此前基于语料的断言没有一条是语料产物或记忆产物。
+- **黄金规则 13 条**覆盖全项目最关键的数值与语义：tick 上限倍率×2、45.454544 ms 预算、Rare=250 / Long=2000、60 tick/秒、3600000 tick/年、需求量子 150、护甲 25%、事件节拍 1000、严重度 200/60000、IsHuge>60、作业核数−1、Stopwatch 帧源。
+- 语料完整性：11340 文件 / 45.6 MB；Assembly-CSharp 9262 · Waylith 1323 · UnityStubs 703 · RimWorld 45 · Waylith.UnityCompat 7；Waylith 887/887 类型无缺失。
+问题 / 后续：
+- `backtest.ps1` 现为可重跑脚本（`-SampleTypes` 可调，`-Gate` 追加 GATE 行），已加入 README 待办。
+- 未覆盖：`resolved-partial` 6 条与 `runtime-only` 5 条本身无 claim 可核，回测对它们只能确认「标注存在」，不能确认结论。
+----------------------------------------------------------------
+[2026-10-20T17:08:51+08:00] | 阶段：6 实施（汇总卷） | 轮次：R25 新增 V23「单 tick 全景」 | 类型：实施 / 检查
+
+概况：新增并交付 V23「单 tick 全景」（309 行 / 2 张图 / 25 条 claim）：把 V01–V22 拆开讲过的东西按一次 tick 的时间顺序重新串成一条可执行链路 —— 引擎帧 → Root_Play.Update → Game.UpdatePlay → TickManagerUpdate（累积器 + 双闸门 + 余量清零）→ DoSingleTick 的 20 步有序清单 → MapPreTick/MapPostTick → 三层 TickList 的哈希分桶 → Thing.DoTick 区间链。
+原因：用户要求「将 1 tick 中发生的全部流程写入一个新文档，可以以图或伪代码形式」。
+范围 / 文件：新增 docs/mechanisms/V23-single-tick.md；更新 01_PROJECT_PLAN.md（卷表 +V23）、docs/mechanisms/V00-overview.md（主链挂点表 +V23）、scripts/backtest.ps1（普查期望 24 卷 / 621 claim）
+验证：
+- verify-claims.ps1 → claims=621 pass=621 fail=0
+- lint-docs.ps1 → docs=24 mermaid=55 errors=0
+- backtest.ps1 -SampleTypes 9999 → pass=182 fail=0；其中 TickManager 47 claim、TickList 12、Map 15、Game 5 全部按 DLL 重编译核对通过（V23 的 25 条含在其中）
+结果（本卷定稿的关键顺序结论）：
+- 三层结构：帧级（LetterStackUpdate / WorldUpdate / MapUpdate / GameComponentUpdate，每帧一次）与 tick 级（DoSingleTick 及其子系统）严格分离。
+- DoSingleTick 顺序：MapPreTick×地图 → ticksGameInt++ → GameSeconds 着色器量 → Normal/Rare/Long 三层 → DateNotifier → Scenario → WorldTick → StoryWatcher → GameEnder → Storyteller → Tale → Quest → WorldPostTick → MapPostTick×地图 → History → GameComponent → LetterStack → Autosaver。
+- 两条顺序约束值得记：tick 号在实体 tick 之前自增（桶选择用本 tick 编号）；故事叙述者在世界 tick 之后（事件看到的是已推进的世界）。
+- 异常隔离：第 7–20 步各自 try/catch + Log.Error，单个子系统崩溃不打断本 tick（GameComponentTick 是例外，不在 try 内）。
+- 哈希分桶：BucketOf = hash(thing) % interval，Tick 只推进 thingLists[TicksGame % interval] 一个桶；Normal=1 / Rare=250 / Long=2000，因此 Rare 层物体被摊到 250 个相位上而非同时唤醒。
+- MapUpdate 是帧级，含 regionAndRoomUpdater.TryRebuildDirtyRegionsAndRooms()（区域/房间增量重建每帧一次，不是每 tick）。
+问题 / 后续：
+- V23 记入 4 条 Open questions：异常刷屏是否有节流、fastEcology 的 +2000 相位影响、寻路作业结果可见时机、Autosaver 触发条件。
+- 全项目终态：24 卷 / 6286 行 / 55 张 Mermaid / 621 条断言全通；OQ 111 条（resolved 98 / partial 6 / runtime 5 / note 1 / analytic 1）。
+----------------------------------------------------------------
+
+[2026-10-20T17:32:12+08:00] | 阶段：8 交付与关闭 | 轮次：R26 Stage 8 交付 | 类型：交付 / 关闭
+
+概况：完成项目交付并记录关闭。新增 DELIVERY.md（交付报告：AC1–AC6 逐项对照 + 交付物清单 + 复现步骤 + 已知边界 + 关闭声明）与 HANDOFF.md（新会话交接：证据体系、阅读顺序、24 卷一句话索引、操作流程、环境坑、未结项清单、禁止事项）；重写 README.md（24 卷索引 + 10 个脚本 + 先读入口）；清理临时脚本 scripts/_probe-meta.ps1。
+原因：用户指示「完成交付」，并说明本会话到此结束、后续更细致的研究由新会话接着做 —— 因此除交付报告外还需一份自包含的交接说明，避免新会话重新踩坑。
+范围 / 文件：新增 DELIVERY.md、HANDOFF.md；重写 README.md；删除 scripts/_probe-meta.ps1（探针草稿）；更新 state.md（关闭态）
+验收对照（AC1–AC6 + 附加 AC7）：
+- AC1 结构/锚点/Mermaid：lint-docs.ps1 → docs=24 mermaid=55 errors=0，24/24 通过
+- AC2 断言命中率：verify-claims.ps1 → claims=621 pass=621 fail=0
+- AC3 索引覆盖与可重建：12234 类型 / 111 命名空间，list-types.ps1 幂等
+- AC4 交叉引用零悬空：lint errors=0
+- AC5 Mermaid 配对与节点合法：55 图全通过
+- AC6 三件记录一致：project.log（本行前 579 行）/ GATE.log（30 行）/ state.md 时间线可追
+- AC7（附加）独立回测：backtest.ps1 -SampleTypes 9999 → pass=182 fail=0
+交付终态：
+- 文档 24 卷 / 6286 行 / 55 图 / 621 条断言
+- 语料 11340 文件 / 45.6 MB（Assembly-CSharp 9262 · Waylith 1323（887/887 类型）· UnityStubs 703 · RimWorld 45 · Waylith.UnityCompat 7）
+- 索引 12234 类型 / 111 命名空间 / waylith-types.tsv 887 / open-questions.tsv 111 条
+- OQ：resolved 98 / resolved-partial 6 / runtime-only 5 / resolved-analytic 1 / note 1；blocked、phased、deferred 均为 0
+- 脚本 10 个；记录 project.log 579 行 + GATE.log 30 行 + logs/ 16 文件
+已知边界（随交付一并说明，非遗漏）：
+- Bc7BlockEncoder 仅有 IL 版本（C# 前端病态循环，IL 模式 31207 行正常）
+- 无 PDB → 以 Token RID + 语料行号定位
+- 11 条 OQ 未转成断言：6 条 partial（Def 数据面细节）、5 条 runtime-only（需实测）
+- V19–V23 五卷自带 21 条 fresh Open questions，属下一层级深挖点
+关闭决定：**项目关闭**（用户于 2026-10-20 指示完成交付并结束本会话）。本周期记录（project.log / logs/GATE.log）自此封存，只追加不改写；后续研究作为新工作周期，按 HANDOFF.md 的框架继续。
+----------------------------------------------------------------
+
+----------------------------------------------------------------
+
+[2026-10-20T18:19:08+08:00] | 新周期：v3 细化 | 轮次：P0 样张 | 类型：方案落地 / 样张
+
+概况：新增 v3 演进叙事体写作规范与样张卷 V08（战斗与伤害），v1 旧卷不动。
+原因：用户否决 v2（指标驱动方案），要求「面向人可读、单模块逻辑完整、能说明子系统如何演进并展现底层演进细节」；确认 D5–D8 后开工 P0，并指示新内容置于新目录。
+范围 / 文件：
+- 新增 docs/STYLE.md（v3 规范：七锚点骨架、叙事规则、图表规范、证据规则、长度节奏、目录布局）
+- 新增 docs/mechanisms-v3/V08-combat-and-damage.md（805 行 / 60 条断言 / 3 张 Mermaid）
+- 修改 scripts/lint-docs.ps1（新增 -Profile v1|v3；v3 校验七锚点 + 每卷至少一张 Mermaid；默认 v1 行为不变）
+- 修改 00_PROJECT_RULES.md §5（补 v3 卷例外与校验命令，原「每卷固定六节」改为「v1 卷固定六节」）
+验证：
+- verify-claims.ps1 -DocsRoot docs/mechanisms-v3 → claims=60 pass=60 fail=0（exit=0）
+- lint-docs.ps1 -Profile v3 -DocsRoot docs/mechanisms-v3 → docs=1 claims=60 mermaid=3 errors=0（exit=0）
+- lint-docs.ps1（v1 默认档）→ docs=24 claims=621 mermaid=55 errors=0（exit=0，旧卷零回归）
+样张结构（供审风格）：
+- 七节：Where it sits / Evolution / Stage detail / Branches / Contracts / Evidence / Open questions
+- 按攻击演进链组织：S0 举枪 → S1 暖机 → S2 发射 → S3 三次掷骰 → S4 飞行 → S5 落地选靶 → S6 伤口 → S7 护甲；每节问句标题开头，末尾要点卡 + 陷阱框
+- 断言：保留 v1 的 C01–C30 原号原义，新增 C31–C60（30 条），全部来自语料实测；含「DeflectThresholdFactor / MaxArmorRating 只有声明、全语料无引用」的检索结论（C60）
+- 底层演进细节示例：命中在发射瞬间定（非飞行中）；DamageInfo 在管线中被改写至少三次；护甲是「每件衣物各掷一次 + 本体再掷一次」的概率链
+问题 / 后续：
+- 样张待用户审风格；通过后按 P1 起每批 2–3 卷铺开
+- docs/TRACES.md、docs/GLOSSARY.md、docs/CONSTANTS.md 尚未创建（计划 P9/P10）
+- state.md 的卷表仍是旧数据（19 卷 + V17/V18 重复行），计划 R1 重建
+----------------------------------------------------------------
+
+[2026-10-20T19:57:26+08:00] | 新周期：v3 细化 | 轮次：P0.1 样张修订 | 类型：样张迭代
+
+概况：按用户反馈重写样张卷 V08：为每个逻辑块配「源码 + 伪代码」，新增变量与类型速查表，补三个推演案例；断言由 60 增至 65。
+原因：用户要求「代码与新出现的变量应给解释或注释；每段逻辑同时附源码与伪代码；复杂场景给案例」。
+范围 / 文件：
+- 重写 docs/mechanisms-v3/V08-combat-and-damage.md（1405 行 / 65 断言 / 20 组源码 + 20 组伪代码 / 3 案例 / 3 图）
+- 更新 docs/STYLE.md（新增 3A 代码与变量写法、3B 案例规范；源码块允许用 … 标注省略但保留行须逐字一致）
+验证：
+- verify-claims.ps1 -DocsRoot docs/mechanisms-v3 → claims=65 pass=65 fail=0（exit=0）
+- lint-docs.ps1 -Profile v3 → docs=1 claims=65 mermaid=3 errors=0（exit=0）
+- lint-docs.ps1（v1 默认档）→ docs=24 claims=621 mermaid=55 errors=0（exit=0，零回归）
+本轮新增内容：
+- 变量与类型速查：26 个标识符 + ShotReport 9 个字段（名称 / 类型 / 含义 / 出处）
+- 源码-伪代码配对覆盖：S0 举枪 2 组、S1 暖机 2 组、S2 连发 2 组、S3 掷骰 2 组、命中率合成 1 组、S4 飞行 3 组、S5 落地 1 组、S6 伤口 3 组、S7 护甲 2 组、掩体 2 组
+- 案例 A（12 格射击）：逐步算出 AimOnTarget_IgnoringPosture=0.4412、PassCover=0.25、瞄准命中 11.0%，并给出「打偏 55.9% / 打掩体 33.1% / 命中 11.0%」的完整分布
+- 案例 A 附「姿态陷阱」：目标趴下时 UI 显示命中率减半（5.5%），但判定链概率不变（仍 11.0%）；真正的卧倒减半发生在 S5 的 ImpactSomething
+- 案例 B（12 点锐伤穿三层护甲）：逐层算出 0 / 3 / 6 / 12 四种落点与「一旦减半即转钝伤」
+- 案例 C（屏幕外飞行）：10 tick 飞行 + 15 tick 更新 → 单次更新跨 18 格、90 个 0.2 格采样点，澄清「不是跳过格子，而是采样线可能漏格」
+新增断言（5 条）：
+- C61 TotalEstimatedHitChance 的唯一消费点是 UI 读数文本（全语料检索确认）
+- C62 姿态因子只进显示链，判定读 AimOnTargetChance_IgnoringPosture
+- C63 段内拦截以 0.2 格步长逐点采样、每格只判一次
+- C64 实心格（含关闭的门）无条件拦下
+- C65 同阵营拦截按 preventFriendlyFire / 难度系数处理
+问题 / 后续：
+- 篇幅从 805 行增到 1405 行；若嫌长，可在定稿时把「变量速查」「命中率表」「掩体角度表」移入附录卷，正文只留引用
+- 案例中的 [假设] 数值需在 P1 起逐步替换为 Def 实测值（属 data-surface Open question 第 1 条）
+----------------------------------------------------------------
+
+[2026-10-20T21:03:04+08:00] | 新周期：v3 细化 | 轮次：P0.2 样张再修订 | 类型：样张迭代
+
+概况：按用户反馈把样张卷改为「类结构前置 + 源码与伪代码逐条对齐 + 源码行内注释」，篇幅保持（不拆附录）。
+原因：用户要求「同时使用源码与伪代码时结构对齐；源码可适当加注释；保持现状；进入每个模块前先列该模块从属的类结构（不列函数细节，但注释作用）」。
+范围 / 文件：
+- 重写 docs/mechanisms-v3/V08-combat-and-damage.md（1537 行 / 65 断言 / 20 组源码-伪代码对 / 10 个类结构块 / 3 案例 / 3 图）
+- 更新 docs/STYLE.md（3A 新增第 6–8 条：类结构前置、①②编号对齐、源码可加注释但不得改语句）
+- 修改 scripts/lint-docs.ps1（v3 档新增对齐校验：相邻 csharp/text 两段的编号序列必须一致；缺编号也报错；编号用 \u2460-\u2473 匹配，保持脚本纯 ASCII）
+结构改法：
+- 每个模块（S0–S7、命中率、掩体，共 10 个）先列「本模块的类结构」：类全名 + 一句话作用，按「基类 → 具体实现 → 协作者」排序，不列函数细节
+- 源码块每条语句行尾加 ①②③ 与中文注释（注明「注释为本文档所加」），伪代码行首给同一编号；花括号行不占编号；省略用 …
+- 伪代码为逐条转写，不再出现「一行合并两条语句」的情况（P0.1 的 ⑪⑫、⑮⑯ 合并已拆开）
+验证：
+- verify-claims.ps1 -DocsRoot docs/mechanisms-v3 → claims=65 pass=65 fail=0（exit=0）
+- lint-docs.ps1 -Profile v3 → docs=1 claims=65 mermaid=3 errors=0（exit=0）
+- lint-docs.ps1（v1 默认档）→ docs=24 claims=621 mermaid=55 errors=0（exit=0，零回归）
+- lint 对齐检查自测（logs/_selftest 临时目录，测完删除）：OK 用例 exit=0；BAD 用例 exit=1 并输出「markers differ [①②] vs [①]」；NONE 用例 exit=1 并输出「pair has no step markers」
+问题 / 后续：
+- 编号用 ①–⑳，单块上限 20 条语句；超过则拆块（本卷最长块为 18 条）
+- 类结构块目前靠人工保证，脚本只校验对齐；若需要机器强约束，可在 STYLE 中约定 ASCII 标记后再加 lint 规则
+----------------------------------------------------------------
+
+[2026-10-20T23:24:26+08:00] | 新周期：v3 细化 | 轮次：P0.3 样张定风格 | 类型：样张迭代
+
+概况：按用户指定把类结构改为 class 形式、去掉源码/伪代码编号、取消行数上限；lint 对齐检查改为「语句数比对」。
+原因：用户明确要求「不保留编号，不局限 20 行」，并给出类结构模板：
+      class 类名{ type 变量 ; #注释 ; type 函数(输入)->输出 ; #功能 }
+范围 / 文件：
+- 重写 docs/mechanisms-v3/V08-combat-and-damage.md（1806 行 / 65 断言 / 47 个 class 定义 / 20 组源码-伪代码对 / 3 案例 / 3 图）
+- 更新 docs/STYLE.md：3A 第 6 条换成 class 模板；第 7 条改为「不用编号，按语句同序对齐，lint 比对语句数」；新增第 9 条「不设行数/语句数上限」；§6 长度表改为不限制
+- 修改 scripts/lint-docs.ps1：v3 对齐校验从「①–⑳ 编号序列」改为「语句数比对」——源码不计花括号行与 `//` 后内容，伪代码不计纯 `#` 注释行；不一致即报错
+结构改法：
+- 每个模块（S0–S7、命中率、掩体，共 10 个）先给 class 块：字段写类型 + 变量名 + `#` 注释；函数写 `type 名称(输入) -> 输出 ; # 作用`；不展开函数体；继承用 `class 子类 : 父类 {`
+- 源码块保留中文行尾注释（注明为本文档所加），删除全部 ①②③ 编号
+- 伪代码删除编号，改为与源码同序、同层级缩进的逐条转写；`…` 表示省略
+验证：
+- verify-claims.ps1 -DocsRoot docs/mechanisms-v3 → claims=65 pass=65 fail=0（exit=0）
+- lint-docs.ps1 -Profile v3 → docs=1 claims=65 mermaid=3 errors=0（exit=0）
+- lint-docs.ps1（v1 默认档）→ docs=24 claims=621 mermaid=55 errors=0（exit=0，零回归）
+- 语句数校验自测（logs/_selftest 临时目录，测完删除）：语句数相等 exit=0；源码 2 条 / 伪代码 1 条 exit=1，报「statement count differs src=2 pseudo=1」
+- 修了两处真实不一致：StanceTick 段因 `{ // 注释` 被误计为语句（改为剥注释后判断），Bullet.Impact 的伪代码把 `构造伤害(...)` 折成 4 行（改为单行）
+问题 / 后续：
+- 类结构目前列的是「与本模块相关」的字段/函数，不是完整类签名；若需要完整字段清单，需逐类从语料全量导出（工作量另计）
+- 语句数校验对「一行多条语句」「跨行表达式折叠」敏感，写伪代码时需保持一语句一行
+----------------------------------------------------------------
+
+[2026-10-20T23:49:59+08:00] | 新周期：v3 细化 | 轮次：P0.4 类结构格式定稿 | 类型：样张迭代
+
+概况：类结构块改为 C# 注释风格（围栏 csharp、`//` 注释、字段不完整处用 `...` 标注），并让 lint 跳过类结构块；无需完整成员清单。
+原因：用户要求「md 中的类结构展示可以注释 C# 格式；类展示不完整时用 ... 表示省略；无需完整清单」。
+范围 / 文件：
+- 更新 docs/mechanisms-v3/V08-combat-and-damage.md：10 个类结构块全部转为 csharp 围栏 + `//` 注释 + `...` 省略标记；去除 `;` 前多余空格（1863 行，47 个 class 定义）
+- 更新 docs/STYLE.md：3A 第 6 条改为 C# 注释模板（含 `...` 规则、无需完整清单）；第 7 条注明类结构块不参与语句数比对
+- 修改 scripts/lint-docs.ps1：块对象加 IsClass 标记（正文含行首 class 即判定），语句数配对校验跳过类结构块
+验证：
+- lint-docs.ps1 -Profile v3 → docs=1 claims=65 mermaid=3 errors=0（exit=0）
+- verify-claims.ps1 -DocsRoot docs/mechanisms-v3 → claims=65 pass=65 fail=0（exit=0）
+- lint-docs.ps1（v1 默认档）→ docs=24 claims=621 mermaid=55 errors=0（exit=0，零回归）
+格式示例（当前文档 S0 块）：
+  class Verse.Verb {  // 攻击动作的公共状态机（抽象基类）
+      Thing caster;  // 施法者：人、炮塔、陷阱都可能
+      ...
+      bool TryStartCastOn(LocalTargetInfo 目标) -> bool;  // 入口：校验 → 换暖机姿态或直接发射
+      ...
+  }
+问题 / 后续：
+- `//` 注释列未做等宽对齐（保留「代码 + 两空格 + 注释」的紧凑写法）；如需表格式对齐可再加一轮格式规整
+- 类结构只列相关成员 + `...` 省略，不追求完整清单（按用户要求）
+----------------------------------------------------------------
+
+2026-10-21T00:11:28+08:00 | 新周期：v3 细化 | 轮次：P0.5 流程小结段落 | 类型：样张迭代
+
+概况：为每个部分补一段「这一段怎么走」的散文小结，按「先做什么 → 再做什么 → 在哪分叉 → 交到哪里」复述推进顺序。
+原因：用户要求「在每个部分写一个段落总结这个部分是如何进行的」。
+范围 / 文件：
+- 更新 docs/mechanisms-v3/V08-combat-and-damage.md：新增 17 段流程小结（7 个 H2 级部分 + 10 个模块），并更新卷首「本卷写法」说明（1897 行）
+- 更新 docs/STYLE.md：§3 新增第 9 条「每部分结尾给一段『这一段怎么走』」（2–5 句散文，只讲顺序与因果）
+小结覆盖：
+- Where it sits / 变量速查 / Evolution / Stage detail / Branches / Contracts / Evidence / Open questions 各一段
+- S0–S7、命中率、掩体 各一段（放在该模块要点卡之后、下一节标题之前）
+- 文末补一段，说明四条 Open question 的取证路线
+未覆盖：
+- Evidence 下的 5 个分组（S0–S2 等）未单独加小结——它们是 claim 清单而不是流程；如需可再补
+验证：
+- lint-docs.ps1 -Profile v3 → docs=1 claims=65 mermaid=3 errors=0（exit=0）
+- verify-claims.ps1 -DocsRoot docs/mechanisms-v3 → claims=65 pass=65 fail=0（exit=0）
+- lint-docs.ps1（v1 默认档）→ docs=24 claims=621 mermaid=55 errors=0（exit=0，零回归）
+- 统计：全文 1897 行；「这一段怎么走」17 处；H2/H3 标题 24 个
+问题 / 后续：
+- 小结段落统一用 `**这一段怎么走**：` 开头，便于后续脚本统计覆盖率（可加 lint 规则：每个 H2/H3 前必须有一段）
+----------------------------------------------------------------
+
+2026-10-21T10:10:00+08:00 | 新周期：v3 细化 | 轮次：P0.6 类结构照抄源码 | 类型：样张迭代
+
+概况：10 个类结构块全部改为「按源码原样」——修饰符、类型、成员名、参数名与默认值一律不改，只删成员并用 `...` 标省略。
+原因：用户指出「类结构尽量按照源码来，不要替换变量名」。此前的块里存在改名（如 `LocalTargetInfo 目标`、`int 伤害`、`bool 被护盾挡`）与自造字段名（如 `int ShotsPerBurst;` 实为属性）。
+范围 / 文件：
+- 重写 docs/mechanisms-v3/V08-combat-and-damage.md 的 10 个类结构块（1857 行，47 个 class 定义）
+- 更新 docs/STYLE.md 3A 第 6 条：模板改为照抄源码签名，并新增「成员一律照抄源码，可删不可改名」条款
+核对依据（逐条取自语料）：
+- Verse.Verb：`public Thing caster;`、`public VerbState state;`、`protected LocalTargetInfo currentTarget;`、`protected int burstShotsLeft;`、`protected int ticksToNextBurstShot;`、`protected virtual int ShotsPerBurst`、`public virtual bool TryStartCastOn(LocalTargetInfo castTarg, LocalTargetInfo destTarg, …)`
+- Verse.Stance_Busy：`public int ticksLeft;` / `public Verb verb;` / `public LocalTargetInfo focusTarg;`（暖机态字段在 Stance_Busy，不在 Stance_Warmup）
+- Verse.Pawn_StanceTracker：`public Pawn pawn;` / `public Stance curStance = new Stance_Mobile();` / `public StunHandler stunner;` / `public void SetStance(Stance newStance)`
+- Verse.Stance：`protected Pawn Pawn` / `public Pawn_StanceTracker stanceTracker;`
+- Verse.VerbProperties：`public int burstShotCount = 1;` / `public int ticksBetweenBurstShots = 15;` / `public float muzzleFlashScale;`
+- Verse.Projectile：`public LocalTargetInfo usedTarget;` / `protected bool landed;` / `protected int ticksToImpact;` / `protected float StartingTicksToImpact` / `protected IntVec3 DestinationCell`
+- RimWorld.CompProjectileInterceptor：`public bool CheckIntercept(Projectile projectile, Vector3 lastExactPos, Vector3 newExactPos)`
+- Verse.VerbUtility：`public static List<Thing> ThingsToHit(IntVec3 cell, Map map, Func<Thing, bool> filter)`
+- Verse.DamageInfo：`public DamageDef Def` / `public float Amount` / `public float ArmorPenetrationInt` / `public BodyPartRecord HitPart` / `public bool IgnoreArmor`
+- Verse.DamageWorker.DamageResult：`public BodyPartRecord LastHitPart` / `public bool headshot;` / `public bool deflected;` / `public bool diminished;` / `public List<BodyPartRecord> parts;`
+- Verse.ArmorUtility：`GetPostArmorDamage(Pawn pawn, float amount, float armorPenetration, BodyPartRecord part, ref DamageDef damageDef, out bool deflectedByMetalArmor, out bool diminishedByMetalArmor)`（public static）与 `ApplyArmor(ref float damAmount, float armorPenetration, float armorRating, Thing armorThing, ref DamageDef damageDef, Pawn pawn, out bool metalArmor)`（private static）
+- Verse.CoverUtility：`CalculateCoverGiverSet(LocalTargetInfo target, IntVec3 shooterLoc, Map map)` / `CalculateOverallBlockChance(…)` / `public static float BaseBlockChance(this ThingDef def)` / `private static bool TryFindAdjustedCoverInCell(IntVec3 shooterLoc, LocalTargetInfo target, IntVec3 adjCell, Map map, out CoverInfo result)`
+- Verse.CoverInfo：`public Thing Thing` / `public float BlockChance` / `public static CoverInfo Invalid`
+- Verse.GenGeo：`public static float AngleDifferenceBetween(float A, float B)`
+- Verse.GenAdj：`public static IntVec3[] AdjacentCells = new IntVec3[8];`
+- 命名空间更正：DarknessCombatUtility 无命名空间（全局）；StatDef 在 RimWorld；Pawn_ApparelTracker/Apparel/Building_Door/CompProjectileInterceptor 在 RimWorld
+验证：
+- lint-docs.ps1 -Profile v3 → docs=1 claims=65 mermaid=3 errors=0（exit=0）
+- verify-claims.ps1 -DocsRoot docs/mechanisms-v3 → claims=65 pass=65 fail=0（exit=0）
+- lint-docs.ps1（v1 默认档）→ docs=24 claims=621 mermaid=55 errors=0（exit=0）
+- 统计：1857 行 / 10 个类结构块 / 47 个 class / 17 段流程小结
+问题 / 后续：
+- 类结构仍只列「与本模块相关」的成员，未列全体；`...` 已标省略
+- 上一轮临时文件 logs/_classblocks.txt 用完即删
+----------------------------------------------------------------
+
+2026-10-21T10:17:21+08:00 | 新周期：v3 细化 | 轮次：P0.7 Branches 展开 | 类型：样张迭代（内容扩写）
+
+概况：把样张卷的 `## Branches` 从一张表 + 四条要点，展开为 7 个子节（B1–B7），每节含类结构、源码-伪代码对、要点/陷阱与流程小结；新增 15 条断言。
+原因：用户要求「将样本卷 branch 部分展开；项目追求详细，解释文档长度不做限制」。
+范围 / 文件：
+- docs/mechanisms-v3/V08-combat-and-damage.md：Branches 由 20 行扩到 377 行；全文 2291 行；claim 65 → 80
+- 新增断言 V08-C66…C80（分支与层积），已单独核对通过
+分支内容：
+- B1 近战：两次掷骰（命中 → 闪避）→ ApplyMeleeDamageToTarget 直接结算，无 Projectile
+- B2 爆炸：Impact 的两条路径（盾挡/无延迟立即炸；否则落地装引信）→ TickInterval 递减 → Explode 先自毁 → GenExplosion.DoExplosion；附 DamageWorker.Explosion* 四步表
+- B3 生成物弹：父类 Impact 自毁后生成 spawnsThingDef，落点有建筑时找相邻空格，可归属则继承派系
+- B4 拦截器：半径 + 一个步长 + 0.1 的粗判 → Active → InterceptsProjectile → 敌对判定
+- B5 Ideology 黑暗：屋顶 + 房间 PsychologicalOutdoors → 天空亮度 0.35 → ShotReport.offsetFromDarkness（唯一加法项）
+- B6 Biotech 破门：门 + 近战/部位攻击 + BiotechActive → MeleeDoorDamageFactor（只放大建筑伤害）
+- B7 层积：两条无人引用常量、旧重载、复用相机更新率、只喂 UI 的姿态因子（各带 claim 引用）
+验证（按用户要求只验证改动部分）：
+- 新增 15 条 claim 单独核对：claims=15 pass=15 fail=0（exit=0）
+- 未改动部分（C01–C65）本轮不再重跑
+- lint-docs.ps1 -Profile v3 → docs=1 claims=80 mermaid=3 errors=0（exit=0，含新增 5 组源码-伪代码语句数对齐）
+- v1 旧卷未改，未重跑
+统计：Branches 377 行 / 7 个子节 / 流程小结 24 段（原 17 + 新增 7）
+问题 / 后续：
+- B7 的「护甲上限 2 是否被 stat 钳制」仍是 Open question 第 2 条，未在本轮解决
+- B2 的爆炸四步表只给职责，未逐行贴源码；若需要可再补 DamageWorker.Explosion* 的源码-伪代码对
+----------------------------------------------------------------
+
+2026-10-21T10:35:21+08:00 | 新周期：v3 细化 | 轮次：P0.8 结算函数补源码-伪代码 | 类型：样张迭代（内容扩写）
+
+概况：为爆炸四步与三处分片/过杀/拦截结算函数补「源码 + 伪代码 + 规则」，已讲过的机制只引用不重复；新增 11 条断言。
+原因：用户要求「补充各种结算函数（如爆炸四步）的源代码-伪代码与规则；复用已说过的机制可说明并省略，随后补新增部分」。
+范围 / 文件：
+- docs/mechanisms-v3/V08-combat-and-damage.md：B2 由 87 行扩到 256 行；新增 `### 结算函数：分片、过杀与逐格拦截` 118 行；全文 2635 行；claim 80 → 91
+- 新增断言 V08-C81…C91，已单独核对通过
+B2 新增（四步各一组源码-伪代码 + 规则）：
+- ExplosionStart：热量 = 每格热量 × 格数；表现开关只影响渲染
+- ExplosionCellsToHit：半径 → 界内 → 视线；扇形裁剪在选格阶段完成
+- ExplosionAffectCell：排除 Mote/Ethereal → 记录本格最高实心高度 → 只看高度 ≥ 该值的候选 → 无实心物才伤地形
+- ExplosionDamageThing：Mote/Ethereal → 去重 → 方向角（爆心随机、否则按方位）→ 按格取伤害量与穿甲 → TakeDamage（S6 已述，未重复）→ 受伤补 95 tick 硬直
+新增结算小节（3 组）：
+- ApplyToPawn 的 ApplyAllDamage：上限 25 片、每片取 min(剩余, 每片)、按实际造成伤害扣减
+- ReduceDamageToPreserveOutsideParts：只保护外层非核心部位，溢出后按曲线掷骰，否则留 1 HP
+- CheckForFreeIntercept：Pawn 概率 0.4 × 体型，卧倒 ×0.1；实心格不看概率（引用 C64）
+复用说明：DamageInfo 改写、护甲两级、伤口生成均标注「S6/S7 已述」，不再展开。
+验证（只验改动部分）：
+- 新增 11 条 claim 单独核对：claims=11 pass=11 fail=0（exit=0）
+- lint-docs.ps1 -Profile v3 → docs=1 claims=91 mermaid=3 errors=0（exit=0）；修了 4 处语句数不一致（ApplyAllDamage 的 if/break 合并、拦截概率缺一行、候选缺 thing 赋值、方向角缺声明）
+- 未改动的 C01–C80 本轮未重跑；v1 旧卷未改未重跑
+统计：全文 2635 行 / 34 组源码-伪代码 / 10 个类结构块 / 52 个 class / 25 段流程小结 / 91 条断言
+问题 / 后续：
+- 分片策略的「普通伤害平分 N 片」分支仍未给源码（只在 S6 表里给结论），如需可再补一组
+- 爆炸的 GenExplosion.DoExplosion 参数过多，只作调用点引用，未逐参解释
+----------------------------------------------------------------
+
+2026-10-21T10:46:25+08:00 | 新周期：v3 细化 | 轮次：P0.9 源码前加功能说明 | 类型：样张迭代（可读性）
+
+概况：为全部 37 组「源码 + 伪代码」在源码块前补一段 `**这一段做什么**：…`，说明该段的功能、截取范围与在链中的位置；并修掉一处重复句。
+原因：用户要求「在每次给出源码-伪代码之前，应当先说明这一段的功能」。
+范围 / 文件：
+- docs/mechanisms-v3/V08-combat-and-damage.md：2746 行；37 个源码标签各配 1 段功能说明
+- docs/STYLE.md：3A 第 2 条改为「每段源码前先写 `**这一段做什么**：…`（1–2 句，说清功能、截取范围、处于哪一步）」
+过程与修正：
+- 首次批量插入时用 `-like '**源码**（*'` 匹配，通配符把卷首「每段逻辑给『源码 + 伪代码』两段…（…）」也匹配进去，导致 37 段说明整体错位一位
+- 改为读取标记文件 + `StartsWith` 精确匹配，先删掉所有功能说明行再按顺序重插；同时补上 Explode、IsOutdoorsLit、Outdoors 三处此前没有标签的源码块
+- 去掉 B2 里重复的一句「爆炸的落点由 `DamageWorker.Explosion*` 接管…」
+- 把 B5 首个标签从「`DarknessCombatUtility` 的户外判定与亮度阈值」改为 `DarknessCombatUtility.IsOutdoorsAndDark`（原标签会让人以为覆盖三块）
+验证（只验改动部分）：
+- lint-docs.ps1 -Profile v3 → docs=1 claims=91 mermaid=3 errors=0（exit=0，37 组配对语句数仍一致）
+- 源码标签 37 = 功能说明 37；claim 91 条未变；C01–C91 本轮未重跑（正文断言未改）
+统计：2746 行 / 37 组源码-伪代码 / 37 段功能说明 / 25 段流程小结 / 91 条断言
+问题 / 后续：
+- 功能说明统一以 `**这一段做什么**：` 开头，后续可用 lint 校验「每个源码标签前必须有一条功能说明」
+----------------------------------------------------------------
+
+2026-10-21T10:55:54+08:00 | 新周期：v3 细化 | 轮次：P0.10 规则确认 + 类结构分号 | 类型：规范确认 / 格式修正
+
+概况：把「每段源码前必须有功能说明」写成可执行规则（STYLE + lint 强制），并按「补全分号、源码没有的不补」修正类结构。
+原因：用户要求「确认写入规则；在类结构中补全分号（除非源码中不含）」。
+规则落位：
+- docs/STYLE.md 3A 第 2 条：每段源码前先写 `**这一段做什么**：…`（1–2 句，说清功能、截取范围、处于哪一步）
+- docs/STYLE.md 3A 第 6 条新增：行尾分号按源码形态补全——字段与抽象方法保留 `;`；属性与带方法体的方法不加 `;`；枚举成员用 `,`，最后一项按源码
+- scripts/lint-docs.ps1：v3 档新增检查「每个 `**源码**（` 标签前 2 行内必须有 `**这一段做什么**：`」，用 \u 转义保持脚本纯 ASCII
+格式修正：
+- 类结构中唯一缺分号的是 `protected abstract DamageWorker.DamageResult ApplyMeleeDamageToTarget(LocalTargetInfo target)`（源码带 `;`），已补
+- 其余无分号的成员经逐条核对都是属性（`WarmupTime`、`ShotsPerBurst`、`Projectile`、`AllVerbs`、`Pawn`、`TicksBetweenBurstShots`、`AimOnTargetChance*`、`PassCoverChance`、`TotalEstimatedHitChance`、`Source`/`Dest`、`StartingTicksToImpact`、`DestinationCell`、`UpdateRateTicks`、`SpeedTilesPerTick`、`Def`/`Amount`/`ArmorPenetrationInt`/`HitPart`/`IgnoreArmor`、`LastHitPart`、`BleedRate`/`PainOffset`、`WornApparel`、`Wearer`、`Thing`/`BlockChance`/`Invalid`、`Open` 等）与枚举成员，按源码保持无分号
+验证：
+- lint-docs.ps1 -Profile v3 → docs=1 claims=91 mermaid=3 errors=0（exit=0）
+- 规则自测（logs/_selftest2 临时目录，测完删除）：带功能说明 exit=0；删掉说明 exit=1，报「source block has no function intro line」
+- 断言未改，C01–C91 未重跑；v1 旧卷未动
+统计：2746 行 / 37 组源码-伪代码（均带功能说明）/ 91 条断言
+问题 / 后续：
+- 类结构里 `abstract` 修饰符尚未补（Verb / Projectile / Stance / Verb_MeleeAttack 源码均为 abstract class）；如需完全照抄可再补
+----------------------------------------------------------------
+
+2026-10-21T11:05:31+08:00 | 新周期：v3 细化 | 轮次：P0.11 照抄补全 + P1 首卷（V23） | 类型：格式修正 / 新卷交付
+
+概况：先补齐类结构的照抄修饰符，再交付 P1 首卷 `V23-single-tick.md`（v3 版），并解决 v1 里「18/20/22 步」的口径冲突。
+原因：用户要求「补充照抄部分，随后开始 P1」。
+一、照抄补全（V08）
+- 按源码补 `abstract` / `struct` / `enum` / `static` 四类修饰符，共改 24 行类头：
+  - abstract：`Verse.Verb`（×2）、`Verse.Projectile`（×2）、`Verse.Stance`、`Verse.Stance_Busy`、`RimWorld.Verb_MeleeAttack`
+  - struct：`Verse.ShotReport`（×2）、`Verse.ShootLine`（×2）、`Verse.CoverInfo`、`Verse.DamageInfo`
+  - enum：`Verse.VerbState`、`Verse.ProjectileHitFlags`
+  - static class：`Verse.CoverUtility`（×3）、`Verse.ArmorUtility`、`Verse.VerbUtility`、`Verse.GenGeo`、`Verse.GenAdj`、`DarknessCombatUtility`（×2）
+- lint 的类结构识别同步放宽为「可选修饰符 + class/struct/enum」，避免 struct/enum 块被当成源码块去比语句数
+二、P1 首卷：docs/mechanisms-v3/V23-single-tick.md（675 行 / 33 断言 / 4 组源码-伪代码 / 9 段小结）
+- 口径结论：`DoSingleTick` 有 **24 个执行位点**（20 子系统 + 2 调试 + 2 收尾）；v1 的 18（标题）/20（正文）/22（V01）各自漏计不同部分，本卷统一为 24
+- 结构：Where it sits（TickManager/TickList/Game/Map/Root_Play 类结构）→ Evolution（帧/tick/实体三层 + 24 位点分组表 + 口径表）→ Stage detail（S0 累积器与双闸门、S1 开头段、S2 收尾段、S3 三层桶、S4 交给实体）→ Branches → Contracts → Evidence → Open questions
+- 新增案例 A（一帧跑几个 tick：1× / 3× / 15× 三种倍率下表值与预算谁先到）、案例 B（fastEcology 下植物相位恒为 0、真正生效的是每 tick 的 TickLong）
+- 新发现（已入断言）：
+  - C27 `GameComponentTick` 是 24 位点里唯一不在 try 内的（其上一行 catch 属于 HistoryTick）
+  - C32 非 DevMode 下实体异常用 `Log.ErrorOnce(..., thing.thingIDNumber ^ 576876901)` 按物体去重——**v1 V23 的 Open question「异常刷屏是否有节流」由此解决**
+  - C33 fastEcology 下所有植物每 tick 额外 `TickLong`，常规桶相位被固定为 0
+  - C26/C28/C29/C30/C31 补上 v1 缺失的收尾位点（+2000、Filth、运输船、调试控制台、每小时截图）
+验证（按用户规则只验改动）：
+- lint-docs.ps1 -Profile v3 → docs=2 claims=124 mermaid=4 errors=0（exit=0）；修了 V23 三处伪代码语句数与源码不一致（try/catch 需逐行对应）
+- 新增 8 条断言单独核对：claims=8 pass=8 fail=0（exit=0）
+- V23 的 C01–C25 原样沿用 v1（正文与 match 未改），未重验；C01–C91（V08）未重跑
+统计：v3 两卷共 3421 行 / 124 断言 / 57 组源码-伪代码 / 34 段流程小结
+问题 / 后续：
+- P1 还剩 V01（帧循环，需把「22 阶段」改为引用 V23 的 24 位点）与 V00（总览，需更新卷地图与口径）
+- V23 的 Open questions 保留 3 条：MapPreTick/MapPostTick 内部顺序、预算分界点实测、GameComponentTick 无 try 的来历
+----------------------------------------------------------------
+
+2026-10-21T11:13:33+08:00 | 新周期：v3 细化 | 轮次：P1 第二卷（V01） | 类型：新卷交付
+
+概况：交付 `docs/mechanisms-v3/V01-tick-pipeline.md`（567 行 / 25 断言 / 5 组源码-伪代码 / 10 段小结），把「帧如何变成 tick」独立成卷，并与 V23 的分工写清。
+原因：用户指示「开始 V01」。
+本卷内容：
+- Where it sits：TickManager / TimeSpeed / Game / UnityEngine.Time 桩 / Root_Play 的类结构（照抄源码成员与修饰符）
+- S0 每帧入口：`Game.UpdatePlay` 的 9 条语句（自动信件 → 泵 → 信件栈 → 世界 → 地图 → 信息 → 组件 → 信号 → 图集），只有自动信件包 try
+- S1 倍率：`TickRateMultiplier` 的 8 种取值（ForcedNormalSpeed 夺权、五档、Superfast 18/12/6、Ultrafast 20000/150/15）+ 案例 A（同一档位不同倍率的对照表）
+- S2 暂停：`Paused` = 玩家暂停 ∪ `ForcePaused`；`ForcePaused` 六个来源（窗口/长事件/瓦片选择器/过场/落地确认/建图调试）
+- S3 泵的输入：`CurTimePerTick = 1/(60×倍率)`；案例 B 说明抖动带只在 Normal 档生效（Ultrafast 下带宽 0.11 ms，远窄于 16.7 ms 帧时间）
+- S4 帧级通道：七件事与 tick 无关；`GameComponentUpdate`（帧）与 `GameComponentTick`（tick）区分
+- S5 时间来源：`Time.deltaTime` 是桩层，真实值来自 Waylith，被 `maximumDeltaTime = 0.33333334` 截断
+- Branches：无事可做、无地图、调试加速、强制正常速、强制暂停、卡顿截断；层积三条（一档多值的来历、判空风格、Time 是桩）
+- 口径：正文明确引用 V23 的 24 位点，本卷不再自报「22 阶段」；断言编号独立于 v1 V01（卷首已声明）
+- Open questions：无事判定的完整条件、帧级通道相互依赖、ForcedNormalSpeed 的触发点
+验证：
+- lint-docs.ps1 -Profile v3 → docs=3 claims=149 mermaid=5 errors=0（exit=0）；修了 3 处伪代码缺 `取值:` 行导致语句数差 1
+- V01 25 条断言单独核对：claims=25 pass=25 fail=0（exit=0）
+- V08 / V23 未重跑
+统计：v3 三卷共 3988 行 / 149 断言 / 62 组源码-伪代码 / 44 段流程小结
+问题 / 后续：
+- P1 还剩 V00（总览：卷地图、程序集实测数、口径引用）
+- V01 的 Open questions 三条留待后续补证
+----------------------------------------------------------------
+
+2026-10-21T11:25:21+08:00 | 新周期：v3 细化 | 轮次：P1 第三卷（V00）收官 | 类型：新卷交付 / P1 完成
+
+概况：交付 `docs/mechanisms-v3/V00-overview.md`（336 行 / 9 断言 / 2 组源码-伪代码 / 8 段小结），P1 计划的三卷（V00/V23/V01）全部落盘。
+原因：用户指示「开始 V00」。
+本卷内容：
+- Where it sits：Current / ProgramState / Root_Play / Game / TickManager / EngineApplication 的类结构（照抄成员与修饰符）
+- S0 程序集与命名空间：5 个程序集的职责与语料规模；类型数（12234）与文件数（11347）两种口径并列，明确不可混用
+- S1 主链五个类型：Root_Play.Update（长事件期间整帧返回）→ Current.Game（可写静态属性，读档换对象）→ Game（持有 tickManager/World/Maps）
+- S2 卷地图：v3 已重写 4 卷（V00/V01/V08/V23）+ v1 20 卷，附挂点与命名空间
+- S3 索引与检索：types.tsv 列说明 + 三条可重跑命令 + Waylith 内层限定
+- Branches：v1/v3 并存、Waylith 两套转储（413 重名）、Bc7BlockEncoder 只有 IL、口径差异、断言编号不对应
+- Open questions：数字基线会过期、loc_approx 非精确行数、两套文档并存期需维护卷地图
+验证：
+- lint-docs.ps1 -Profile v3 → docs=4 claims=158 mermaid=6 errors=0（exit=0）；补了第二组源码块的功能说明（首版漏写）
+- V00 9 条断言单独核对：claims=9 pass=9 fail=0（exit=0）
+- V08 / V23 / V01 未重跑
+统计：v3 四卷共 4324 行 / 158 断言 / 64 组源码-伪代码 / 52 段流程小结
+P1 完成情况：
+- V23（675 行 / 33 断言）确立 24 位点口径
+- V01（567 行 / 25 断言）帧、倍率、暂停、帧级通道
+- V00（336 行 / 9 断言）程序集、主链、卷地图、检索路径
+- V08（2746 行 / 91 断言）此前的样张卷，仍为格式基准
+问题 / 后续：
+- 下一步可开 P2（V22 帧源 / V02 时间 / V17 表现层），或先把 v1 里的 V03/V04 等卷按同一骨架重写
+- 卷地图需在每卷交付后更新（v3 覆盖数会增加）
+----------------------------------------------------------------
+
+2026-10-21T11:33:39+08:00 | 新周期：v3 细化 | 轮次：P2 首卷（V22） | 类型：新卷交付
+
+概况：交付 `docs/mechanisms-v3/V22-waylith-runtime.md`（508 行 / 18 断言 / 4 组源码-伪代码 / 9 段小结），把引擎的帧源与线程模型独立成卷。
+原因：用户指示「开启 P2」；P2 计划为 V22 / V02 / V17，本卷为第一本。
+本卷内容：
+- Where it sits：EngineApplication / RenderThread / FrameRenderer / MainThreadSynchronizationContext 的类结构（照抄源码成员）
+- S0 主循环：RunLoop 每帧七步（泵上下文 → OnUpdate → BeginMainThreadFrame → CaptureFrame → Enqueue → FrameEnqueued → 限速）
+- S1 主线程上下文：启动时安装、每帧 Pump()，跨线程回调必须 Post
+- S2 渲染线程：有界队列 `max(1, FramesInFlight)`；Enqueue 阻塞即反压；消费循环 `GetConsumingEnumerable` + finally 通知/释放
+- S3 限速：`Sleep((剩余−0.001)×1000)` + 自旋补足最后 1 ms；案例 A 给 60 FPS 的逐步计算
+- S4 跨线程异常：`ExceptionDispatchInfo` 存 `_failure`，主线程 `ThrowIfFaulted` 带原堆栈重抛
+- Branches：无头模式、最小化/失焦、不限速、IgnoreThrottle、作业线程；层积三条（1 ms 常数、max(1,…) 兜底、双重 ThrowIfFaulted）
+- Open questions：FramesInFlight 取值来源、队列满阻塞时长、JobRuntime 调度
+验证：
+- lint-docs.ps1 -Profile v3 → docs=5 claims=176 mermaid=7 errors=0（exit=0）；补了 RenderLoop 源码块的功能说明，并删除限速伪代码里多余的空循环行
+- V22 18 条断言单独核对：claims=18 pass=18 fail=0（exit=0）
+- V00/V01/V08/V23 未重跑
+统计：v3 五卷共 4832 行 / 176 断言 / 68 组源码-伪代码 / 61 段流程小结
+问题 / 后续：
+- P2 还剩 V02（时间与历法）与 V17（UI 与渲染桥接）
+- V22 的 Open questions 需读渲染上下文或实测才能推进
+----------------------------------------------------------------
+
+2026-10-21T11:59:28+08:00 | 新周期：v3 细化 | 轮次：P2 第二卷（V17） | 类型：新卷交付
+
+概况：交付 `docs/mechanisms-v3/V17-ui-and-rendering.md`（426 行 / 16 断言 / 5 组源码-伪代码 / 9 段小结），讲清逻辑与表现两条通道的接缝。
+原因：P2 计划为 V22 / V02 / V17；V22 已交付，本轮做 V17。
+本卷内容：
+- Where it sits：Root / Root_Play / UIRoot / UIRoot_Play / WindowStack / MapDrawer / CameraDriver 的类结构（照抄成员）
+- S0 逻辑通道：Root.Update 先推进长事件 → 退出/等待判断 → 缓存自检 → UIRootUpdate → 延迟应用偏好（第 4 帧后一次）→ soundRoot.Update
+- S1 表现通道：Root.OnGUI 设 GUI.depth=50 与 UI 缩放 → 长事件绘制 → 等待时只画 ScreenFader；否则 UIRootOnGUI → ScreenFader → 地图相机 → 世界相机
+- S2 唯一时间倒灌：WindowStack.WindowsForcePause 遍历窗口的 forcePause → TickManager.ForcePaused（引用 V01 §S2）
+- S3 脏标记：物体生成/销毁 → MapMeshDirty(Position, Things, true, false) → 本帧绘制阶段重建该格
+- S4 场景与 UI 根：Root.Start 按 GenScene 二选一创建 UIRoot_Play / UIRoot_Entry，运行期不替换
+- Branches：长事件、窗口强制暂停、场景销毁、相机禁用、偏好应用一次；层积三条（GUI.depth 魔法数、ScreenFader 重复、MapMeshDirty 重载不统一）
+- Open questions：UIRootUpdate 与 OnGUI 的真实时序、MapMeshDirty 各重载调用点、UIRoot_Entry 职责
+验证：
+- lint-docs.ps1 -Profile v3 → docs=6 claims=192 mermaid=8 errors=0（exit=0）；补了 WindowsForcePause 伪代码缺的 `取值:` 行
+- V17 16 条断言单独核对：claims=16 pass=16 fail=0（exit=0）
+- 其余四卷未重跑
+统计：v3 六卷共 5258 行 / 192 断言 / 73 组源码-伪代码 / 70 段流程小结
+问题 / 后续：
+- P2 只剩 V02（时间与历法）
+- 本卷未展开 UIRoot_Entry 与控件层，属「不覆盖」范围
+----------------------------------------------------------------
+
+2026-10-21T12:06:50+08:00 | 新周期：v3 细化 | 轮次：P2 第三卷（V02）收官 | 类型：新卷交付 / P2 完成
+
+概况：交付 `docs/mechanisms-v3/V02-time-and-calendar.md`（387 行 / 17 断言 / 3 组源码-伪代码 / 8 段小结），P2 计划三卷（V22/V02/V17）全部落盘。
+原因：用户指示「开启 V02」。
+本卷内容：
+- Where it sits：TickManager / GenDate / DateNotifier / Pawn_AgeTracker 的类结构（照抄常量与成员）
+- S0 时间标尺：六组换算常量（2500 / 60000 / 300000 / 900000 / 3600000）+ 开局第 6 小时 + 时区 15°；附单位换算表
+- S1 绝对时间：`TicksAbs = ticksGameInt + gameStartAbsTick`；偏移未设时 `Log.ErrorOnce` 报一次并退回本局 tick
+- S2 日历推进：DateNotifierTick 取时区最西家园 → 经纬度 → GenDate.Season(TicksAbs) → 换季且非回退 → 首夏警告 / 季节消息（>5 天）→ 记住新季节
+- S3 生物年龄：`progressToNextBiologicalTick += BiologicalTicksPerTick × interval` → floor 进位；案例 A 给 1.0 / 0.1 / 0.01 三种速率的对照
+- Branches：fastEcology（+2000）、无家园、极地季节、锁定生命阶段、突变体禁老化；层积三条（TicksAbs 退化分支、「刻」的来历、只认时区最西）
+- Open questions：Season 内部插值、两条判据、快进下通知频率
+验证：
+- lint-docs.ps1 -Profile v3 → docs=7 claims=209 mermaid=9 errors=0（exit=0）
+- V02 17 条断言单独核对：claims=17 pass=17 fail=0（exit=0）
+- 其余六卷未重跑
+统计：v3 七卷共 5645 行 / 209 断言 / 76 组源码-伪代码 / 78 段流程小结
+P2 完成：
+- V22（508 行 / 18 断言）帧源与线程
+- V17（426 行 / 16 断言）UI 与渲染桥接
+- V02（387 行 / 17 断言）时间与历法
+问题 / 后续：
+- 下一阶段 P3 候选：V03（地图/寻路）、V04（Thing 生命周期）、V05（Pawn）
+- V02 的三条 Open questions 需补读 GenDate 与两条判据函数
+----------------------------------------------------------------
+
+2026-10-21T12:13:44+08:00 | 新周期：v3 细化 | 轮次：P3 首卷（V03） | 类型：新卷交付
+
+概况：交付 `docs/mechanisms-v3/V03-map-and-pathfinding.md`（474 行 / 19 断言 / 4 组源码-伪代码 / 10 段小结），讲清地图网格族与 1.7 的批量寻路管线。
+原因：用户指示「开启 P3」；P3 计划 V03 / V04 / V05，本轮做 V03。
+本卷内容：
+- Where it sits：Map 的 17 个网格字段 + PathFinder 三个队列 + PathRequest 的类结构（照抄成员）
+- S0 地图网格族：17 个格子系统的职责与使用者（物体/建筑/掩体/地形/屋顶/区域/光照/通行/肥力/雪/气体/污染/深层矿/避让/出口/迷雾/蓝图）
+- S1 入队：PushRequest 只做「重复 / 已就绪」两道拒绝，不做校验
+- S2 每 tick 寻路泵：PathFinderTick 六步（销毁检查 → ForceComplete → FinalizeRecycle → ComputeWork → GatherData → 调度两条作业）
+- S3 取批：ComputeWorkThisTick 倒序扫描，取消/失效移除，到期进 tmpCurrentWork（非 FIFO）
+- S4 回收：FinalizeRecyclePathJobData 把作业输出转 PawnPath 并 Resolve，结果跨一 tick
+- S5 同步入口：FindPathNow 两个重载（以 Pawn 为参数的那个内部构造 TraverseParms 再转调）
+- Branches：取消/失效/无路径/门阻塞/动物启发 1.75/销毁；层积三条（同步与异步并存、倒序删除、WarningOnce 哈希键）
+- Open questions：PathFinderCostTuning 九维、GatherData 打包范围、ForceComplete 阻塞时长
+验证：
+- lint-docs.ps1 -Profile v3 → docs=8 claims=228 mermaid=10 errors=0（exit=0）；S5 原先把「单行签名」与「三行伪代码」配对，改为只留正文说明并补 C19 断言
+- V03 19 条断言单独核对：claims=19 pass=19 fail=0（exit=0）
+- 其余七卷未重跑
+统计：v3 八卷共 6119 行 / 228 断言 / 80 组源码-伪代码 / 88 段流程小结
+问题 / 后续：
+- P3 还剩 V04（Thing 生命周期与分桶）与 V05（Pawn 构成）
+- V03 的 Open questions 需读 PathFinderMapData 与 cost tuning 细节
+----------------------------------------------------------------
+
+2026-10-21T12:24:15+08:00 | 新周期：v3 细化 | 轮次：P3-V03 补 A* 算法本体 | 类型：内容补全
+
+概况：回答「pathfinding 的算法在哪里」，并把算法本体补进 V03（新增 S6，3 组源码-伪代码 + 13 条断言）。
+原因：用户指出 V03 只讲了管线，没有指出 A* 本体的位置。
+算法位置：`analysis/decompiled/Assembly-CSharp/Verse/PathFinderJob.cs` —— `[BurstCompile(CompileSynchronously = true)] public struct PathFinderJob : IJob`。
+- 开放表：`NativePriorityQueue<int,float,FloatMinComparer> frontier`（按 fCost 最小）
+- 关闭表：`calcGrid[i].status == Closed`
+- 节点：`CalcNode { gCost, hCost, fCost, parentIndex, status }`
+- 启发：`(dx+dz) − 0.58579004 × min(dx,dz)`，再 × 13 × `heuristicStrength`（人形 1、动物 1.75）
+- 代价：单格 `max(grid, providerCost) + (blocked ? 175 : 0)`；`providerCost == 65535` 映射 10000（近似不可通行）
+- 重开关闭节点容差：`ceil(moveTicksCardinal × 0.8)`
+- 回溯：`FinalizePath` 沿 `parentIndex` 反向生成，`pathCost = 终点 gCost`
+- 调度：`ScheduleBatchedPathJobs` 每请求先 Schedule 门阻塞作业，再 Schedule `PathFinderJob`，最后 `JobHandle.ScheduleBatchedJobs()`
+入口与管线：`PathFinder.PathFinderTick` → 取批 → `PathFinderMapData.GatherData` 打包 → `ScheduleGridJobs` → `ScheduleBatchedPathJobs`（本卷 S2/S6）。
+范围 / 文件：
+- docs/mechanisms-v3/V03-map-and-pathfinding.md：新增 S6「算法本体：PathFinderJob 里的 A*」（约 310 行），全文 474 → 784 行；断言 19 → 32
+验证：
+- lint-docs.ps1 -Profile v3 → docs=8 claims=241 mermaid=10 errors=0（exit=0）；修了 3 处缺功能说明与 2 处伪代码语句数差 2
+- 新增 13 条断言（C20–C32）单独核对：claims=13 pass=13 fail=0（exit=0）
+- 其余七卷与 V03 旧断言未重跑
+统计：v3 八卷共 6429 行 / 241 断言
+问题 / 后续：
+- `IndexCost` 的完整分支（providerCost 其它取值、terrain 修正）未逐行拆，已在 S6 只取主公式
+- 门阻塞作业 `PathGridDoorsBlockedJob` 未展开，可作为后续补充
+----------------------------------------------------------------
+
+2026-10-21T12:30:59+08:00 | 新周期：v3 细化 | 轮次：P3 第二卷（V04） | 类型：新卷交付
+
+概况：交付 `docs/mechanisms-v3/V04-thing-lifecycle.md`（441 行 / 18 断言 / 5 组源码-伪代码 / 9 段小结），讲清单个物体的生命周期与分桶位置。
+原因：用户指示「开启 V04」。
+本卷内容：
+- Where it sits：Thing / TickList / TickManager 的类结构（照抄字段与方法签名）
+- S0 DoTick 四段：缓存角色 → 按 TickerType 分派 Normal/Rare/Long → tickDelta 区间链 → 递归持有物
+- S1 分桶：RegisterThing 只入延迟队列；BucketOf 用 GetHashCode 取正后取模；相位运行期稳定、不跨存档
+- S2 SpawnSetup：写 mapIndexOrState（sbyte）→ 注册区域 → TryAdd spawnedThings → RegisterAllTickabilityFor → 标脏
+- S3 DeSpawn：镜像注销（覆盖层句柄 → 区域 → 集合 → 列表 → 物体格网 → 掩体格网 → … → DeRegisterAllTickabilityFor）
+- S4 区间链：UpdateRateTicks 默认取相机更新率，被 Min/MaxTickIntervalRate 钳制；UpdateRateTickOffset 错峰
+- Branches：Rare/Long、持有者递归、容器内未生成、半注册、镜头远近；层积三条（sbyte 状态位、延迟队列、TickerType 定死）
+- Open questions：TickList 数组长度与取模边界、相机分档阈值、哈希跨存档稳定性
+验证：
+- lint-docs.ps1 -Profile v3 → docs=9 claims=259 mermaid=11 errors=0（exit=0）；补了相机更新率伪代码的 `取值:` 行，并把「若已销毁: 返回」拆成两行以对齐语句数
+- V04 18 条断言单独核对：claims=18 pass=18 fail=0（exit=0）
+- 其余八卷未重跑
+统计：v3 九卷共 6870 行 / 259 断言
+问题 / 后续：
+- P3 只剩 V05（Pawn 构成与状态）
+- V04 的 Open questions 需读 TickList 构造与 GenTicks.GetCameraUpdateRate
+----------------------------------------------------------------
+
+2026-10-21T12:40:50+08:00 | 新周期：v3 细化 | 轮次：P3 第三卷（V05）收官 | 类型：新卷交付 / P3 完成
+
+概况：交付 `docs/mechanisms-v3/V05-pawn-composition.md`（407 行 / 18 断言 / 4 组源码-伪代码 / 8 段小结），P3 计划三卷（V03/V04/V05）全部落盘。
+原因：用户指示「开启 V05」。
+本卷内容：
+- Where it sits：Pawn 的 22 个组件字段 + Pawn_NeedsTracker + Need 的类结构
+- S0 Pawn.Tick：基类 → 移动/动词/姿态（需 Spawned）→ 工作（需非世界层）→ 健康（无条件）
+- S1 Pawn.TickInterval：基类 → 工作区间 → 健康区间 → 心态/搬运（需未死亡）→ 需求/服装/基因
+- S2 需求 150 tick 量子：IsHashIntervalTick(150, delta) 命中才逐条 NeedInterval()
+- S3 组件清单表：22 个组件按「每 tick / 区间 / 事件」三档归类
+- Branches：Suspended、世界层、死亡、noAnimals、冷冻、相机远处；层积三条（两条链的演化、health 双链、150 量子）
+- Open questions：Suspended 判定、IsHashIntervalTick 的 delta 语义、组件清单完整性
+验证：
+- lint-docs.ps1 -Profile v3 → docs=10 claims=277 mermaid=12 errors=0（exit=0）；修了 TickInterval 伪代码语句数（删多余省略行后又要按源码 `...` 补回三行，最终 12=12）
+- V05 18 条断言单独核对：claims=18 pass=18 fail=0（exit=0）
+- 其余九卷未重跑
+统计：v3 十卷共 7277 行 / 277 断言
+P3 完成：
+- V03（784 行 / 32 断言，含 A* 本体）
+- V04（441 行 / 18 断言）
+- V05（407 行 / 18 断言）
+问题 / 后续：
+- 下一阶段 P4 候选：V06（AI：ThinkTree/Job/Toil）、V07（工作与生产）、V13（需求与心情）
+- V05 的组件清单还需按 DLC 增量补全
+----------------------------------------------------------------
+
+2026-10-21T12:51:09+08:00 | 新周期：v3 细化 | 轮次：P4 三卷（V06 / V07 / V13） | 类型：新卷交付 / P4 完成
+
+概况：按顺序完成 P4 三卷并逐卷校验，合计 1073 行 / 43 条新断言。
+原因：用户指示「开启 P4，按顺序完成 V06-07-13，全部完成后再报告」。
+
+一、V06（docs/mechanisms-v3/V06-ai-thinktree-job-toil.md，350 行 / 14 断言 / 3 组源码-伪代码）
+- Where it sits：Pawn_JobTracker / JobDriver / Toil / ThinkTreeDef 类结构
+- S0 每 tick：JobTrackerTick 只推进 curDriver.DriverTick，并清零派发计数
+- S1 每 30 tick：DetermineNextConstantThinkTreeJob → ShouldStartJobFromThinkTree → StartJob；无效结果 ReturnToPool
+- S2 DriverTick：ticksLeftThisToil 递减、CheckCurrentToilEndOrFail、ToilCompleteMode（Instant/Delay/FinishedBusy）
+- Branches：空闲主动找工作、过期（可要求敌人附近）、忙碌姿态、队列优先、对象池回收
+- 校验：lint 0 错；claims=14 pass=14
+
+二、V07（docs/mechanisms-v3/V07-work-and-production.md，392 行 / 15 断言 / 3 组源码-伪代码）
+- Where it sits：JobGiver_Work / WorkGiver_Scanner / Bill / Bill_Production 类结构
+- S0 扫描契约：PotentialWorkThingRequest 默认 Undefined、MaxRegionsToScanBeforeGlobalSearch 默认 -1、Prioritized 默认 false
+- S1 优先分支：分娩直接 NoJob；emergency+IsPrioritized 只试同类型 giver，指定格找工作，标记 playerForced
+- S2 Bill 门控：pawnRestriction → slavesOnly → mechsOnly → nonMechsOnly → 技能区间
+- S3 排产：RepeatCount / TargetCount；BillRepeatModeUtility 切换
+- 校验：lint 0 错；claims=15 pass=15
+- 过程中修了 JobGiver_Work 伪代码少一行（补「普通分支」省略行）
+
+三、V13（docs/mechanisms-v3/V13-needs-and-mood.md，331 行 / 14 断言 / 3 组源码-伪代码）
+- Where it sits：Need / Need_Seeker / Need_Mood / MentalBreaker 类结构
+- S0 NeedInterval：朝 CurInstantLevel 靠拢，rise/fall 速率 × 0.06（150/2500 换算），双向钳制
+- S1 阈值：极端 = 属性 ×1/7、重大 = ×4/7、轻微 = ×1；CurMood 缺失时 0.5
+- S2 崩溃判定：无精神态 + 低于阈值 + 未 Blocked（重大另加「极端未迫近」）
+- 校验：lint 0 错；claims=14 pass=14
+
+统一验证：
+- lint-docs.ps1 -Profile v3 → docs=13 claims=320 mermaid=15 errors=0（exit=0）
+- 三轮新断言分别核对：V06 14/14、V07 15/15、V13 14/14（exit=0）
+- 其余十卷未重跑
+统计：v3 十三卷共 8350 行 / 320 断言
+问题 / 后续：
+- P4 完成；下一阶段候选 P5：V11（派系/社交/关系）、V14（医疗/身体）、V20（Ideology）
+- 三卷各有 3 条 Open questions（思维树内部、库存口径、思想汇总等）
+----------------------------------------------------------------
+
+2026-10-21T12:56:36+08:00 | 新周期：v3 细化 | 轮次：P5 三卷（V11 / V14 / V20） | 类型：新卷交付 / P5 完成
+
+概况：按顺序完成 P5 三卷并逐卷校验，合计 973 行 / 40 条新断言。
+原因：用户指示「开启 P5，三卷均完成后报告」。
+
+一、V11（docs/mechanisms-v3/V11-factions-and-social.md，349 行 / 14 断言 / 3 组源码-伪代码）
+- Where it sits：Faction / FactionRelation / Pawn_RelationsTracker / Pawn_InteractionsTracker 类结构
+- S0 派系关系：成对表线性查找；与自己比较报错；allowNull 决定报错或空
+- S1 个人好感：非人形/自己/死者→0；亲属 opinionOffset 累加 + 思想 TotalOpinionOffset + 状态修正
+- S2 随机搭话：冷却 → 发起条件 → 同派系候选 → 洗牌 → 逐个判定（非自己/可互动/可接收/不敌对）
+- 校验：lint 0 错；claims=14 pass=14
+
+二、V14（docs/mechanisms-v3/V14-medical-and-body.md，337 行 / 13 断言 / 3 组源码-伪代码）
+- Where it sits：Pawn_HealthTracker / HediffSet / Hediff 类结构
+- S0 HealthTickInterval：死亡返回 → 复制 hediff 列表 → 逐条 TickInterval+PostTickInterval → 异常移除
+- S1 BleedRateTotal：负缓存约定，失效才 CalculateBleedRate
+- S2 Hediff.TickInterval：ageTicks += delta、每 60 tick 触发 hediffGivers、首次可见记 tale
+- 校验：lint 0 错（补了伪代码一行）；claims=13 pass=13
+
+三、V20（docs/mechanisms-v3/V20-ideology.md，287 行 / 13 断言 / 2 组源码-伪代码）
+- Where it sits：Ideo / Precept / Pawn_IdeoTracker 类结构
+- S0 IdeoTrackerTickInterval：五条件判定 → 确定性 += 因子(每日变化/60000) × delta → cacheId 变化则 RecacheIdeoComponents
+- S1 CertaintyChangePerDay：心情百分比查曲线；无心情返回 0
+- S2 戒律查询：HasPrecept / GetPrecept / GetPreceptImpact / 思想相关戒律
+- 校验：lint 0 错；claims=13 pass=13
+
+统一验证：
+- lint-docs.ps1 -Profile v3 → docs=16 claims=360 mermaid=18 errors=0（exit=0）
+- 三轮新断言分别核对：V11 14/14、V14 13/13、V20 13/13（exit=0）
+- 其余十三卷未重跑
+统计：v3 十六卷共 9323 行 / 360 断言
+问题 / 后续：
+- P5 完成；剩余可开 P6：V09（故事叙述者/事件）、V10（世界与远行队）、V15（Def/XML）、V16（存档）、V18（DLC 增量）、V19（房间/空间）、V21（渲染树）
+- 三卷各有 3 条 Open questions（好感修改、免疫曲线、缓存内容等）
+----------------------------------------------------------------
+
+2026-10-21T12:59:42+08:00 | 新周期：v3 细化 | 轮次：P6 首卷（V09） | 类型：新卷交付
+
+概况：交付 `docs/mechanisms-v3/V09-storyteller-and-incidents.md`（334 行 / 13 断言 / 2 组源码-伪代码），讲清叙述者节拍、事件队列与触发门。
+原因：用户指示「开启 P6」。
+本卷内容：
+- Where it sits：Storyteller / IncidentQueue / QueuedIncident / StorytellerComp / StorytellerUtility 类结构
+- S0 StorytellerTick：每 tick 推队列；每 1000 tick 生成一批；enableStoryteller 关闭则不生成
+- S1 IncidentQueueTick：倒序扫描；未尝试到点即试；成功或无重试时长则移除；过期移除；重试按 833 tick 相位错峰（种子取 FireTick）
+- S2 TryFire：CanFireNow + TryExecute 两道门；成功记录 lastIncidentTick 并通知 StoryState
+- Branches：叙述者禁用、预定事件、重试、过期、条件不满足；层积三条（1000 节拍、833 相位、标记与尝试分离）
+- Open questions：生成汇总顺序、点数公式、各类 comp 的 MTB 统计
+验证：
+- lint-docs.ps1 -Profile v3 → docs=17 claims=373 mermaid=19 errors=0（exit=0）
+- V09 13 条断言单独核对：claims=13 pass=13 fail=0（exit=0）
+- 其余十六卷未重跑
+统计：v3 十七卷共 9657 行 / 373 断言
+问题 / 后续：
+- P6 还剩 V10（世界与远行队）、V15（Def/XML）、V16（存档）、V18（DLC 增量）、V19（房间/空间）、V21（渲染树）
+----------------------------------------------------------------
+
+2026-10-21T13:06:44+08:00 | 新周期：v3 细化 | 轮次：P6 余下六卷（V10 / V15 / V16 / V18 / V19 / V21） | 类型：新卷交付 / P6 完成
+
+概况：按顺序完成 P6 余下六卷并逐卷校验，合计 1573 行 / 66 条新断言；连同 V09 共 1907 行 / 79 条。
+原因：用户指示「继续，直接做完 P6 再回报」。
+
+一、V10（V10-world-and-caravans.md，261 行 / 10 断言 / 2 组源码-伪代码）
+- WorldTick 七行固定顺序：世界 Pawn → 派系 → 世界对象 → 调试绘制 → 世界路径网格 → 世界组件 → 意识形态
+- WorldPostTick 只跑 GameConditionManager，包 try
+- LongLatOf 委托给 tile.Layer
+- 校验：claims=10 pass=10
+
+二、V15（V15-defs-and-xml.md，282 行 / 11 断言 / 2 组源码-伪代码）
+- DefDatabase.Add：拒空、重名改名（随机后缀）、ushort index、65535 上限
+- AddAllInMods：按 OverwritePriority + 加载顺序排序，mod 内 HashSet 去重
+- ResolveReferences 统一阶段、单条异常隔离
+- 校验：claims=11 pass=11（修了两处伪代码语句数）
+
+三、V16（V16-saving.md，302 行 / 12 断言 / 2 组源码-伪代码）
+- InitLoading：模式检查 → 清残留 → XmlDocument 载入 → 切 LoadingVars；失败 ForceStop + 重抛
+- Scribe_Values.Look：四道类型守卫（TargetInfo/Thing/IExposable/Def），默认值相等不写节点
+- 校验：claims=12 pass=12
+
+四、V18（V18-dlc-increments.md，212 行 / 10 断言 / 1 组源码-伪代码）
+- 五个 DLC 开关属性只转发私有字段；IsActive/AreAllActive/IsAnyActiveOrEmpty 通用判断
+- 接入方式：既有链上的 if 分支（Root_Play 结局、互动潜教徒）
+- 校验：claims=10 pass=10
+
+五、V19（V19-rooms-and-space.md，271 行 / 12 断言 / 1 组源码-伪代码）
+- TryRebuildDirtyRegionsAndRooms：重入守卫 → 首次全量 → 无脏返回 → 两阶段增量 → 清脏 → 通知
+- Room.Temperature 转发 tempTracker；IsHuge/CellCount/UsesOutdoorTemperature
+- 校验：claims=12 pass=12
+
+六、V21（V21-rendering-tree.md，245 行 / 11 断言 / 2 组源码-伪代码）
+- MapMeshDirty 两级打脏（本区块 + 全局 + 可选相邻 8 格）；非 Playing 不标脏
+- 便捷重载只在迷雾/建筑/屋顶扩相邻；帧级处理与绘制分离
+- 校验：claims=11 pass=11
+
+统一验证：
+- lint-docs.ps1 -Profile v3 → docs=23 claims=439 mermaid=25 errors=0（exit=0）
+- 六轮新断言分别核对：10/11/12/10/12/11 全过（exit=0）
+- 其余十七卷未重跑
+统计：v3 二十三卷共 11230 行 / 439 断言
+问题 / 后续：
+- v3 仍缺 V12（经济、价格与贸易）——不在 P6 清单内，尚未重写
+- 各卷 Open questions 共 3 条/卷，未合并
+----------------------------------------------------------------
+
+2026-10-21T13:12:45+08:00 | 新周期：v3 细化 | 轮次：V12 补卷 | 类型：新卷交付 / v3 二十四卷齐
+
+概况：交付 `docs/mechanisms-v3/V12-economy-and-trade.md`（321 行 / 12 断言 / 3 组源码-伪代码），补齐 v3 唯一缺口。
+原因：用户指示「补充 V12」。
+本卷内容：
+- Where it sits：Thing / PriceUtility / TradeDeal / Tradeable 类结构
+- S0 MarketValue：价格是属性读取（StatDefOf.MarketValue），即时计算
+- S1 PawnQualityPriceFactor：健康 LERP 0.2..1、能力完全丧失 ×0.6 / 部分 LERP 0.5..1、平均技能曲线、年龄段因子、特质偏移（未压制）、美貌 ×0.2
+- S2 TradeDeal.UpdateCurrencyCount：无货币/礼物模式返回；累加非货币项应付；货币项 ForceToSource 负值扣减
+- Branches：无货币、礼物模式、能力丧失、无技能、特质压制；层积三条（乘加混用、浮点近似常量、CostToInt 取整）
+- Open questions：买卖价差、商队商品生成、礼物好感换算
+验证：
+- lint-docs.ps1 -Profile v3 → docs=24 claims=451 mermaid=26 errors=0（exit=0）；修了两处伪代码语句数（各补一行）
+- V12 12 条断言单独核对：claims=12 pass=12 fail=0（exit=0）
+- 其余二十三卷未重跑
+统计：v3 二十四卷共 11551 行 / 451 断言
+收尾：v3 覆盖 v1 全部 24 卷主题（V00–V23），无缺口
+----------------------------------------------------------------
+
+2026-10-21T13:18:30+08:00 | v3 全量复核 | 轮次：审计（24 卷） | 类型：复核 / 小幅修正
+
+概况：对 `docs/mechanisms-v3/` 24 卷做全量复核：lint、451 条断言逐条重跑、结构审计、锚点歧义审计、src 类型核对；修 1 条弱锚点、给 37 条重复锚点补说明、刷新 state.md 的过期统计。
+原因：用户要求「重新检查一遍 v3 的所有产出」。
+
+复核项与结果：
+1. lint v3 → docs=24 claims=451 mermaid=26 errors=0（exit 0）
+2. 全量断言 → claims=451 pass=451 fail=0（exit 0）
+3. 结构审计：24 卷七节锚点齐全且顺序正确；每卷 ≥2 个 Stage 子节；每卷 ≥1 张 mermaid；无重复 claim ID；claim 编号无缺口；claim 块均含 src/file/match（bad=0）
+4. 标题与文件名编号：24/24 一致
+5. 卷引用：未发现越界 Vxx
+6. v1 回归：24 卷 / 6286 行 / 621 断言 / 55 图，lint errors=0；v1 最后修改时间 10-20，早于 v3 周期，确认未被改动
+7. 覆盖映射：v1 24 卷 ↔ v3 24 卷，无缺无多
+8. 残留扫描：无 TODO/待补/FIXME/TBD；「18 步/20 步/22 阶段」仅出现在 V23 口径表与 V00 陷阱说明（属有意保留）
+9. Open questions：每卷 ≥2 条（实际每卷 3 条）；Contracts 表每卷 ≥3 行；每卷都有 30 秒速览
+10. 跨卷重复长句：仅 evidence 的 `file:` 行重复（预期），无正文复制
+
+发现并修正：
+- V16-C06 原锚点 `throw;` 在 ScribeLoader.cs 出现 3 次 → 改为唯一行 `string text = "Exception while init loading file: ";`，并加 note 说明其后依次为 Log.Error、ForceStop、throw
+- 另 37 条断言的 match 在目标文件中出现 2–9 次（最高：V04-C01 `if (this.Destroyed)` ×9、V14-C01 `if (this.Dead)` ×9、V05-C17 `if (!this.Dead)` ×8）→ 统一补 `note:` 标注出现次数与所属 src，未改断言文本
+- state.md 多项统计过期（仍写 P0.8、65/65、580 行日志、v3「逐卷铺开中」）→ 已更新为 24 卷 / 451 断言 / project.log 1292 行 / GATE.log 57 行，并改写下一步与校验行
+
+验证：
+- 修正后 lint → docs=24 claims=451 mermaid=26 errors=0（exit 0）
+- 修正后全量断言 → 451/451（exit 0）
+- src 类型在目标文件中均存在（missing=0，修正了初版解析把命名空间当类型的误报）
+
+统计：v3 24 卷 / 11589 行（+38 行 note）/ 451 断言 / 26 图；v1 未动
+问题 / 后续：
+- 38 条重复锚点只是「加了说明」，未替换为唯一行；若要彻底消除，可逐条改为「方法签名 + 邻近唯一行」的双锚点格式（需改 STYLE）
+- v3 的 72 条 Open questions 仍未并入 analysis/index/open-questions.tsv
+----------------------------------------------------------------
+
+2026-10-21T13:35:52+08:00 | 仓库整理 | 轮次：GitHub 发布前整理 | 类型：说明文件更新 / 清理 / 可移植化
+
+概况：更新三份说明文件、清理临时产物、把所有脚本的本机绝对路径改为仓库相对路径，并补齐 .gitignore/.gitattributes；仓库可发布体积 74 文件 / 2.78 MB。
+原因：用户准备上传 GitHub，要求「更新说明文件、删除临时使用与无效重复文件」。
+
+一、说明文件
+- README.md 重写：两条文档线（v3 当前 24 卷 11589 行 / 451 断言；v1 归档 6286/621）、阅读起点（V00→V23→V22→V01）、目录、两条校验命令、从零复现（需自备游戏 + dnSpyEx）、已知限制、版权范围（不含 Ludeon 代码/资源）
+- DELIVERY.md 重写：v3 24 卷逐卷行数/断言表（合计 11589/451）、验收 D1–D7、工具链表、复现步骤、已知边界（无 PDB、Bc7 仅 IL、38 条重复锚点、runtime-only、72 条 OQ）、与 v1 的关系
+- HANDOFF.md 重写：证据体系（claim 三行式 + note）、复核命令、三条阅读路径、24 卷一句话索引、加新内容流程、环境坑、未结项、不要做的事
+- 新增 docs/ARCHIVE-v1.md：v1 冻结说明（放在 docs/ 根，避免被 lint 当作 v1 卷扫描）
+
+二、清理
+- 删除 analysis/diag/（495 文件 / 4.21 MB，反编译诊断产物，可由 decompile-diagnose.ps1 重建）
+- 未删除 logs/ 运行日志：工作区规则要求运行日志「只追加、不改写、不删除」，改为由 .gitignore 排除
+- 未发现 .bak/.orig/.tmp/.vs/obj/bin 等残留
+
+三、可移植化（脚本）
+- .gitignore 增补：/analysis/diag/、/logs/*.txt、/tmp/、*.tmp、*.bak、*.orig、.vs/、.vscode/、Thumbs.db
+- 新增 .gitattributes：* text=auto，md/tsv/log 用 LF，ps1 用 CRLF
+- scripts/lint-docs.ps1、verify-claims.ps1：DocsRoot/ProjectRoot 默认值改为空，按 $PSScriptRoot 推导仓库根后解析相对路径
+- 其余 8 个脚本（decompile、dump-waylith、dump-types、probe-type、decompile-diagnose、list-types、backtest、list-types-meta 的 dnSpy 默认值）中的 F:\Project\... 与 E:\dnSpy\... 全部替换为 (Join-Path $PSScriptRoot '..\...') 与 `DNSPY_CONSOLE` 环境变量
+- state.md：清除 E:\dnSpy 绝对路径；语料统计更新为 11347 文件 / 46.3 MB；快照时间更新
+- 01_PROJECT_PLAN.md：去掉 E:\dnSpy 前缀
+
+验证：
+- lint v1 → docs=24 claims=621 mermaid=55 errors=0（exit 0）
+- lint v3 → docs=24 claims=451 mermaid=26 errors=0（exit 0）
+- verify v3 → claims=451 pass=451 fail=0（exit 0）
+- 10 个脚本语法检查（PSParser.Tokenize）→ syntax_bad=0
+- 全仓绝对路径扫描（排除 RimWorld/语料/日志）→ hits=0
+- 上传清单：74 文件 / 2.78 MB（docs 50、scripts 10、analysis/index 4、根 9、GATE.log 1）
+
+问题 / 后续：
+- 尚未 git init / commit / 配置 remote；按规则需用户确认后执行
+- 仓库未附 LICENSE，README 只写了版权范围；如需开源协议需选定
+- v3 的 72 条 Open questions 与 README 里的「双锚点」建议仍未处理
+----------------------------------------------------------------
+
+2026-10-21T13:40:29+08:00 | 文档更新 | 轮次：V00 卷地图刷新 + 项目方案 v2 | 类型：内容更新
+
+概况：把 V00 总览里的卷地图从「v3 只重写 4 卷」改为「24 卷全部完成」，并把项目方案升级为 v2（补 v3 周期、验收、发布计划）。
+原因：用户指出「V00 总览的列表需要更新，项目的 project plan 需要更新」。
+
+一、V00-overview.md
+- 读前须知：「v3 逐卷重写」→「24 卷已全部重写」
+- S2 卷地图：24 行全部为「✅ v3」，主题/挂点/命名空间按 v3 实际内容重写（V03 标注含 A*，V22 标 `RunLoop`/`RenderThread` 等）
+- S2 要点：「v3 只覆盖 4 卷」→「24 卷齐全；v1 仅作历史对照」
+- S2 走读：删去「按状态列确认哪卷已重写」，改为「24 卷全部以 v3 为准」
+- Open questions 第 3 条：由「v3 4 卷 / v1 24 卷差异」改为「两套文档并存，跨版本引用需注明版本」
+
+二、01_PROJECT_PLAN.md（v1 → v2）
+- 标题与历史：v1 确认于 10-20（D1–D4），v2 追加 v3 与发布计划
+- §1 目标：加入两轮交付对照（v1 24 卷/6286/621；v3 24 卷/11589/451）
+- §2 范围：24 卷主题与类型锚点表（按 v3 实际）
+- §3 技术路线：脚本清单更新（含 dump-*、backtest、lint -Profile）
+- §4 产出结构：改为当前目录（v1/v3、STYLE、ARCHIVE、.gitattributes、index、语料不入库）
+- §5 验收：保留 AC1–AC6（v1 已完成），新增 D1–D7（v3 已完成，451/451）
+- §6 轮次：保留 R1–R25 摘要，新增 P0–P6 表（含 V12 补卷与全量复核）
+- §7 风险：新增锚点重复、语料/游戏版权、无 git 仓库三项
+- §8 决定：新增 D5–D10（七节骨架、样张先审、演进定义、24 位点、发布整理）
+- §9 发布计划：入库/排除清单、体积 74 文件 2.78 MB、git 步骤需确认、LICENSE 待定
+- §10 关闭条件：四条
+
+验证：
+- lint v3 → docs=24 claims=451 mermaid=26 errors=0（exit 0）
+- V00 断言 → claims=9 pass=9 fail=0（exit 0）
+- 卷地图行数 24；V00 无「只重写/只覆盖/v3 目前」残留
+- 计划文件无「19 卷/22 卷」旧口径与绝对路径
+- 全仓总量不变：11589 行 / 451 断言
+
+问题 / 后续：
+- 计划 §9 的 git 步骤与 LICENSE 仍待用户确认
+- state.md 的「下一步」仍写 OQ 汇总，可在发布时再收敛
+----------------------------------------------------------------
+
+2026-10-21T13:43:24+08:00 | 仓库整理 | 轮次：治理文件移出版本控制 | 类型：.gitignore 调整
+
+概况：把 `00_PROJECT_RULES.md` 与 `01_PROJECT_PLAN.md` 加入 `.gitignore`，两者继续保留在本地。
+原因：用户指示「将 project rule 和 project plan 加入 gitignore」。
+
+改动：
+- `.gitignore` 新增段：
+  - `/00_PROJECT_RULES.md`
+  - `/01_PROJECT_PLAN.md`
+- `01_PROJECT_PLAN.md` §9 发布计划同步：入库清单去掉治理文件，排除清单加入两者，体积 74 文件/2.78 MB → **72 文件 / 2.77 MB**
+- 引用检查：README / DELIVERY / HANDOFF / 各卷均未引用这两个文件，忽略后不会产生死链
+
+验证：
+- 重新统计入库清单：72 文件 / 2.77 MB
+- 根目录入库项：`.gitattributes`、`.gitignore`、`README.md`、`DELIVERY.md`、`HANDOFF.md`、`project.log`、`state.md`
+- 两文件仍在本地（3911 B / 9011 B）
+
+问题 / 后续：
+- 未执行 git init，无法用 `git check-ignore` 实测；模式为根锚定，预期生效
+----------------------------------------------------------------
+
+2026-10-21T13:46:04+08:00 | 文档更新 | 轮次：README 增加三类声明 | 类型：内容补充
+
+概况：README 新增「## 声明」一节，含 AI 使用、游戏本体、利益无关三条声明；「版权与范围」保留并补一句「许可证尚未选定」。
+原因：用户要求「向 README 中加入 AI 使用声明和游戏本体、利益无关声明」。
+
+内容要点：
+- AI 使用声明：文档在 AI 辅助下完成（结构/改写/伪代码/脚本），人工定方向与验收；每条结论用 claim 三行式并由 verify-claims 机器核对（451/451）；断言通过只证明字符串存在，不等于语义正确；以源码与脚本为准，欢迎提 issue
+- 游戏本体声明：仓库不含游戏本体、DLC、语料、美术/音频；RimWorld/ 与 analysis/decompiled/ 被 .gitignore 排除；复现需自备合法副本；反编译仅用于互操作性与机制研究，不再分发
+- 利益无关声明：与 Ludeon Studios 无隶属/合作/赞助/授权关系；非官方、非商业；不销售、不收费、不接广告；名称与内容归 Ludeon
+
+验证：
+- README 章节结构：新增 85 行「声明」及三个子节，原「版权与范围」顺延至 106 行
+- 内链检查：bad_links=0
+- 声明关键词各命中 1 次
+- lint v3 复跑：docs=24 claims=451 mermaid=26 errors=0（exit 0，README 不在扫描范围，仅确认无连带影响）
+----------------------------------------------------------------
+
+2026-10-21T13:50:43+08:00 | 文档更新 | 轮次：README 声明调整 | 类型：内容修改
+
+概况：按用户要求删除「利益无关声明」，改为「使用限制：仅供学习与参考，禁止利益相关行为」；同时移除 README 中的许可证声明。
+原因：用户指示「删去利益无关声明，改为仅供学习参考，禁止基于此的利益相关行为。暂时先移除许可证声明」。
+
+改动：
+- README `### 利益无关声明` 整节删除
+- 新增 `### 使用限制`：
+  - 仅供学习与参考，禁止任何利益相关行为（销售、收费、付费课程、商业集成、牟利等）
+  - 观点仅为技术分析；RimWorld 名称/商标/内容归 Ludeon Studios
+  - 引用或转载需保留声明并注明来源
+- 「版权与范围」段末删除「许可证尚未选定。」
+- `01_PROJECT_PLAN.md` §9 待定行同步：许可证声明已暂时移除，LICENSE 文件仍未建
+
+验证：
+- README 章节：`## 声明`（85）→ AI 使用声明（87）/ 游戏本体声明（94）/ 使用限制（100）→ 版权与范围（106）
+- 「利益无关」「许可证」在 README 中已无命中；「仅供学习」「利益相关」各 1 处
+- 内链检查 bad_links=0

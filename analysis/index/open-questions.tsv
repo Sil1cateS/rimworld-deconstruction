@@ -1,0 +1,112 @@
+id	status	question
+V00-OQ01	resolved	~~`Waylith.dll` 只落地 439 个文件~~ → **R19 已解除**：dnSpy 的项目级反编译会在 `Waylith.Rendering.Bc7BlockEncoder`（RID 56，190 方法）上无限循环（0 字节文件即其标记，且 IL 模式可正常导出 31207 行）。改用 `scripts/dump-waylith.ps1` 逐类型提取（20 s 超时 + IL 回退）后，**887/887 类型全覆盖**（1322 个 `.cs` + 1 个 `.il`）。引擎主循环的语料现已可查，但尚未逐行解构（属 V17 后续）。
+V00-OQ02	resolved	`Root_Entry`（主菜单场景）与 `Root_Play` 的切换点尚未取证；属 V17 范畴。
+V00-OQ03	note	命名空间规模表来自语料解析，`loc_approx` 是「到下一个类型声明」的近似值，非精确行数；仅用于排序，不作为断言。
+V00-OQ04	resolved	~~调用面统计~~ → **R19 已测**：`Assembly-CSharp` 对 `Waylith` 的引用只有 **53 处 / 29 文件**（`Waylith.Profiling` 17、`Rendering.Texture2D` 11、`Rendering` 9、`Graphics` 4、`Rendering.Shader` 4…）；`UnityStubs` 有 **212 处**（`Graphics.Meshes.VertexAttribute` 32、`Rendering` 29、`UnityCompat` 27、`Audio` 12、`Shader` 11…）。即 887 个引擎类型里，游戏逻辑只按名引用了约 20 个 —— 引擎绝大部分是内部实现。
+V01-OQ01	resolved	**`TickerType.Long` = 2000 与 `fastEcology` 的 +2000 叠加语义**：`fastEcology` 下每 tick 加 2000，则 Long 桶每 tick 都命中，植物类会每 tick 走 `TickLong`——代码里确有专门分支（`TickList.Tick` 中对 `ThingCategory.Plant` 直接调 `TickLong`），但两者是否互相冗余未验证。
+V01-OQ02	runtime-only	**`TickManagerUpdate` 的抖动抑制边界**：`curTimePerTick*0.1` 在 Ultrafast（`curTimePerTick≈0.0011s`）下极窄，几乎总是走 `+= Time.deltaTime` 分支；这是否意味着高倍速下实际倍率由帧率决定而非表值，需要在 V02 用实际时长换算验证。
+V01-OQ03	runtime-only	**每帧上限 `倍率×2` 与 45.45 ms 预算的先后**：Ultrafast 下上限为 30 tick，但预算通常先触发，实际每帧 tick 数由单 tick 成本决定；未做定量测试（本项目为静态解构，不运行游戏）。
+V01-OQ04	resolved	`NothingHappeningInGame` 的缓存粒度是「同一 `TicksGame` 内复用」，但它在 `TickRateMultiplier` 里被调用，而倍率每帧可能被多次查询；缓存失效时机（`lastNothingHappeningCheckTick`）只按 tick 变化，未覆盖同一 tick 内状态变化。
+V01-OQ05	resolved	`MapUpdate`（非 tick 路径）里也调用 `MapComponentUtility.MapComponentUpdate`，与 `MapComponentTick` 的分工需在 V03 明确。
+V02-OQ01	resolved-analytic	**高倍速实际倍率的闭环（接 V01）**：`TickManagerUpdate` 每帧受「倍率×2」与 45.454544 ms 双闸门限制。以 Ultrafast 15 倍为例，理论每 tick 1.1 ms，则 45.45 ms 预算内最多约 41 tick，而闸门允许 30 tick —— 说明在**单 tick 成本 < 1.5 ms** 时表值可达成，否则由实际耗时决定。本卷只给出换算关系，未做运行时测量（本项目为静态解构）。
+V02-OQ02	resolved	**`IsHashIntervalTick` 的精确定义未取证**：`Pawn_AgeTracker` 用它做 60000/2500 tick 的检查，但该方法不在已确认的类型清单内（可能是 `Thing` 的扩展或 `Verse.Gen` 的方法），需在 V04 补。
+V02-OQ03	resolved	**南半球/极地的季节镜像逻辑**只确认了「回退到上一季不发提示」这一表述，`SeasonUtility.GetSeason` 的六参数权重算法（春/夏/秋/冬/常夏/常冬）未逐行解构。
+V02-OQ04	resolved	`ConfiguredTicksAbsAtGameStartCache` 的缓存键是 `GameInitData`，但命中条件与失效时机（重开新档、改起始季节）未验证。
+V02-OQ05	resolved	「1 刻 = 5 天」与 `DaysPerTwelfth` 一致，但 `Twelfth` 枚举的 12 个取值名未记录（枚举在 `RimWorld.Twelfth`，本卷未引用其名称）。
+V03-OQ01	resolved	**作业调度的真实并行度未取证**：`ScheduleBatchedPathJobs`/`ScheduleGridJob`/`JobHandle` 表明用了作业系统，但 `Waylith` 引擎侧实现未全量落地（见 `state.md` 限制 1），无法确认是工作线程并行还是主线程分帧。
+V03-OQ02	resolved	`PathFinderCostTuning`（0x02000363）的调参项未解构：它决定门、污物、水、危险等代价权重，直接决定 AI 走位。
+V03-OQ03	resolved	`Pathing.RecalculatePerceivedPathCostUnderThing` 的代价传播范围（是否影响相邻格/对角线）未验证。
+V03-OQ04	resolved	`Region.DangerFor(pawn)` 的危险评估与 `Reachability` 的 `maxDanger` 判定如何叠加，未做交叉验证。
+V03-OQ05	resolved	`Room` 的围合判定（`Region` 如何升级为 `Room`）未解构，属 V13/V17 交叉面。
+V04-OQ01	resolved	**`UpdateRateTicks` 的实际来源未解构**：它是 `public virtual`，可能被 `ThingComp`/`Pawn`/`Building` 覆写；本卷只确认了 clamp 逻辑，未统计各覆写实现（属 V05/V07 交叉面）。
+V04-OQ02	resolved	`TickInterval(tickDelta)` 的默认实现与 `Tick()` 的关系未逐行确认（基类 `Tick` 是空的？），需在 V05 看 `Pawn.Tick` 是否走 `TickInterval`。
+V04-OQ03	resolved-partial	`ThingOwner.DoTick` 的递归深度限制：holder 树可嵌套（人 → 背包 → 容器），代码里用 `tmpHolders` 逐层展开，但嵌套过深时的保护未验证。
+V04-OQ04	resolved-partial	`ReservationManager` 未单独解构（本卷只引用 `physicalInteractionReservationManager.ReleaseAllForTarget`）；保留系统的冲突裁决规则属 V06。
+V04-OQ05	resolved	`mapIndexOrState` 用 `sbyte` 存地图序号，理论上限 128 张地图；与 `Find.Maps` 实际容量限制的关系未验证。
+V05-OQ01	resolved	**`NeedInterval()` 单次推进量是否随时长缩放**：需求调用点固定 150 tick，但 `delta`（1 或 15）会影响 `TickInterval` 的进入频率，两者叠加后动物需求衰减速率是否与人类等价（按游戏时间）未验证，需与 V13 一起核对 `Need` 的 `NeedInterval` 实现。
+V05-OQ02	resolved	`Pawn.TickInterval` 尾部（1654 行之后）未完整读完，可能还有需求之外的区间逻辑（如交互/思想）。
+V05-OQ03	resolved	`PawnComponentsUtility` 的完整组件清单未逐项列出（本卷只覆盖了 4 个生命周期钩子与 20 余个已知字段），V06/V13/V14 会各自补自己关心的组件。
+V05-OQ04	resolved	`Suspended` 的判定来源（`InCryptosleep` / 被吞 / 地图暂停）未逐条取证。
+V05-OQ05	resolved	`TickRare` 与新引入的 `TickInterval` 体系是否功能重叠（都在做低频工作），未做系统性对比；这是 1.7 重构后可能出现的历史冗余。
+V06-OQ01	resolved	**`ThinkTree` 的节点语义未解构**：`ThinkNode` 只是基类（178 行），真正的优先级/遍历规则在各子类（`ThinkNode_Priority`、`ThinkNode_Conditional`…），属本卷后续或 V13 扩展。
+V06-OQ02	resolved	`TryFindAndStartJob` 的完整扫描顺序（常驻树 vs 主动树 vs 优先工作）未逐行读，只确认了入口与「无任务才触发」。
+V06-OQ03	resolved	`JobDriver.DriverTick` 与 `DriverTickInterval` 内部如何分工（哪些 toil 逻辑在每 tick、哪些在 delta）未展开。
+V06-OQ04	resolved	`Toil` 的 `atomicWithPrevious` 在中断时的具体语义（能否被强制打断）未验证。
+V06-OQ05	resolved	精神状态下 `MentalStateTickInterval` 与 `JobTrackerTickInterval` 的先后（哪个先决定中断）未排序确认，V13 需补。
+V07-OQ01	runtime-only	**`WorkGiver_Scanner` 的扫描成本未量化**：它按区域/全图枚举目标，`ShouldSkip` 只是前置剪枝；在大型地图上「找活」的成本主要由扫描决定，本卷未统计各 WorkGiver 的扫描范围。
+V07-OQ02	resolved	`WorkTypeDef.workGiversByPriority` 的生成规则（Def 里的 `priorityInType` 还是代码排序）未取证。
+V07-OQ03	resolved	`Bill_Production` 的三种模式（做 N 个 / 做到库存 X / 无限）的具体状态机未逐行解构。
+V07-OQ04	resolved	配方工作量（`RecipeDef.workAmount`）与技能等级如何折算出实际耗时，属 V15/V12 交叉面，未验证。
+V07-OQ05	resolved	搬运链路的「预留格」机制（`SlotGroup` 预订避免多个搬运工抢同一格）未解构。
+V08-OQ01	resolved	**`ShotReport` 的命中率分解未逐项解构**（361 行）：射程/技能/体型/掩体/移动各自权重未取证，属 V08 后续。
+V08-OQ02	resolved	`CoverUtility`（166 行）的掩体遮挡判定未展开：掩体既影响命中率，也可能改变伤害加成。
+V08-OQ03	resolved	`DamageWorker` 的子类（割伤/烧伤/爆裂…）如何决定部位与附加效果，未解构；本卷只覆盖基类契约。
+V08-OQ04	resolved	`ApplyArmor` 内部的穿甲-护甲折算公式（`armorPenetration` 如何抵消 `armorRating`）只确认了入口与金属判定，公式主体未逐行读。
+V08-OQ05	resolved	近战（`Verb_MeleeAttack`，336 行）与远程的差异（是否有抛射物阶段）未对比。
+V09-OQ01	resolved	**`MakeIncidentsForInterval` 的候选选择算法未解构**：它遍历 `StorytellerComp` 列表并汇总，但「多个 comp 同时给出候选时如何取舍」未读（涉及 `StorytellerCompProperties` 的权重与冷却）。
+V09-OQ02	resolved	`StorytellerUtility` 中三条曲线的具体形状（`PointsPerWealthCurve`、`PointsPerColonistByWealthCurve`、机械族/次人类系数曲线）只确认存在，未取点。
+V09-OQ03	resolved-partial	`Quest` 生成（`QuestGen`）的脚本化流程未展开：`QuestNode` 树、`QuestScriptDef`、奖励/失败处理都是独立体系，属后续扩展卷。
+V09-OQ04	resolved	`IncidentParms.points` 由谁赋值（叙事者默认点数 vs 事件自定义）未排序。
+V09-OQ05	resolved	难度对事件**频率**（不只是类别）的影响未确认：本卷只看到类别/大威胁开关，未见频率系数。
+V10-OQ01	resolved	**`WorldObject.DoTick` 与 `TickInterval` 的关系未逐条确认**：本卷只确认了分发点与 `Caravan` 的区间覆写，`Site`/`Settlement` 等各自推进什么未展开。
+V10-OQ02	resolved	`CaravanTicksPerMoveUtility.GetTicksPerMove` 的完整成本模型（负重/地形/夜间/动物）未解构。
+V10-OQ03	resolved	世界层与地图层的「暂停一致性」：进入地图时世界是否继续 tick，未验证（涉及 `ProgramState` 与 `TimeSpeed` 的交互）。
+V10-OQ04	resolved	`PlanetLayer`（1641 行）的层面机制（轨道层/地表层切换、`Gravship` 起降）未展开，属 V18 交叉面。
+V10-OQ05	resolved	远行队遇袭（`CaravanMeeting`/`Ambush`）如何切换到地图战斗未解构。
+V11-OQ01	resolved	**`OpinionOf` 的构成项未展开**：它把思想、关系、社交事件等求和，但各项权重与上限（是否可被无界累积）未验证。
+V11-OQ02	resolved	派系好感的夹取上下限来源（Def 还是难度）未确认；`CanChangeGoodwillFor` 的内部条件只确认存在。
+V11-OQ03	resolved	`RelationKindWith` 中「永久敌对/永久盟友」的覆盖逻辑未读。
+V11-OQ04	resolved	社交互动的**发起频率**（多少 tick 一次、在什么状态下才发起）未取证；本卷只覆盖了「怎么选、怎么执行」。
+V11-OQ05	resolved	意识形态（Ideology）对社交的改写（`Precept*` 影响互动权重）属 V18，未纳入。
+V12-OQ01	resolved	**`MarketValue` 本体（物品价格）未解构**：它是 `StatDefOf.MarketValue` 的 stat 计算（受质量/耐久/材料/数量影响），属 Stat 系统，本卷只覆盖了 Pawn 专有折价。
+V12-OQ02	resolved	好感与难度对买/卖价的乘数（差价/税率）未定位：可能在 `Tradeable.GetPriceFor` 的上层或 `TradeDeal` 之外。
+V12-OQ03	resolved	`StockGenerator` 的库存生成与重生成节奏未解构。
+V12-OQ04	resolved	`Pawn_TraderTracker`（商队型商人）与固定贸易站的差异未对比。
+V12-OQ05	resolved	发射舱投送的费用计算（`LaunchSilver`）与距离/重量关系未验证。
+V13-OQ01	resolved	**`Thought_Memory` 的衰减/过期规则未解构**：记忆类思想有 `durationDays`、`MemoryThoughtHandler` 负责老化，具体每多少 tick 检查一次未取证。
+V13-OQ02	resolved	`breakThresholdExtreme` / `breakThresholdMinor` 的具体数值来自难度设置还是常量，未确认（当前只确认用法）。
+V13-OQ03	resolved	精神状态的具体触发链（心情检查在哪个 tick 路径、MTB 还是确定性阈值）未排序；本卷只确认了「显式调用 + 原因标记」这一层。
+V13-OQ04	resolved	灵感（`InspirationHandler`）的产生条件与持续时间模型未展开。
+V13-OQ05	resolved	`Need_Joy`/`Need_Outdoors`/`Need_Chemical_Any` 等是否也采用 150 tick 量子 + Seeker 模型，未逐一验证（本卷只验证了 Food 与 Seeker 两类代表）。
+V14-OQ01	resolved-partial	**伤口自愈（`Hediff_Injury`）的速率公式未取证**：它继承 `Hediff`，但自愈与留疤逻辑在覆写里；本卷只确认了基类的两段钩子结构。属 V14 后续补充项。
+V14-OQ02	resolved	`Hediff.TickInterval` 中 `severityPerDay` 如何折算为每 delta 的增量（是否 `severityPerDay / 60000 * delta`）未逐行确认，`HediffComp_SeverityModifierBase` 的具体算术待补。
+V14-OQ03	resolved	`HediffSet.AddDirect` 的去重/合并规则（同部位同病是否叠加）未解构。
+V14-OQ04	resolved	`BodyPartRecord` 的身体树结构（`BodyDef` 定义的部位层级、缺失部位如何回溯到父部位）未展开。
+V14-OQ05	resolved	成瘾（`Hediff_Addiction`）与戒断的机制只在类型层面确认存在，`Chemical`/`Need_Chemical` 的联动属 V13。
+V15-OQ01	resolved-partial	**`DefInjectionPackage` 未被本卷覆盖**：它是「官方语言包/翻译覆盖 Def 字段」的机制（948 行，V15 范围内最大类型），与 XML 装载共用字段路径语法，但触发时机（语言切换、热重载）尚未取证。
+V15-OQ02	resolved	`TKeySystem.Parse` 与 `ErrorCheckPatches` 的具体校验规则未展开（前者是翻译键索引，后者是补丁自检）；两者都在补丁应用之前，顺序影响补丁报错内容，值得单独一轮。
+V15-OQ03	resolved	`OverwritePriority` 的取值来源（`About.xml` 还是代码）未确认；仅确认它是排序第一键。
+V15-OQ04	resolved	「补丁产物」与「mod 自带 Def」在 `AddDef` 上的差异（`patchedDefs` 走 `AddAllInMods` 尾部追加，因此补丁生成的 Def 天然排在最后）是否需要按类型分别验证，未做。
+V15-OQ05	resolved	热重载路径（`hotReload=true`）与正常装载差异较大（`ClearDefs`、`MemberwiseShallowCopy`、`_HotReloadedThrowaway` 改名），本卷只标注存在，不做展开。
+V16-OQ01	resolved	**`ScribeSaver` 的写出流程未逐行解构**：只知道存在与 `Saving` 模式，节点路径拼接与默认值抑制（`forceSave` 的反面）细节未读。
+V16-OQ02	resolved	`LoadIDsWantedBank` 的登记/查询协议（延迟引用的键格式）未展开。
+V16-OQ03	resolved	`BackCompatibility` 各转换器的具体改写规则（字段改名、枚举值迁移）未抽查任何一个 —— 这部分工作量最大且最易出错。
+V16-OQ04	resolved	`ScribeMetaHeaderUtility` 的模组列表（mod list）如何参与版本判定（模组变化是否也触发迁移）未验证。
+V16-OQ05	resolved	`MapFileCompressor`（地图压缩）与存档体积的关系未解构，属存储优化层。
+V17-OQ01	resolved	**`UIRoot_Play` 的覆写未取证**：本卷只确认了 `Verse.UIRoot` 的两个虚方法，`UIRoot_Play` 与 `UIRoot_Entry` 的差异（游戏内/主菜单）未读。
+V17-OQ02	runtime-only	`OnGUI` 一帧可能被调用多次（IMGUI 布局/绘制两遍）—— 本卷按代码结构推断逻辑全在 `Update`，未通过运行时验证。
+V17-OQ03	resolved	`PawnRenderTree`（643 行）的节点化绘制流程未解构，属表现层深度内容。
+V17-OQ04	resolved	`Waylith` 引擎侧（真正提交绘制命令的那层）语料不完整，桥接面只到 `UnityRuntime` 桩层。
+V17-OQ05	resolved	`WindowStack` 的输入分发顺序（谁能吃掉点击）未展开。
+V18-OQ01	resolved	**`ModsConfig` 与 `ModLister` 两套判定并存**：DLC 代码里既有 `ModsConfig.XxxActive`（缓存布尔）也有 `ModLister.BiotechInstalled`（查包），二者一致性未验证。
+V18-OQ02	resolved-partial	Royalty 的头衔系统（`RoyalTitleDef` 权限/需求）如何与需求系统（V13）挂钩未解构。
+V18-OQ03	resolved	Ideology 的仪式（`RitualBehaviorWorker`，305 行）完整流程与「仪式质量」评分未展开。
+V18-OQ04	resolved	Biotech 的机械族（`Mech`）与 Mechanitor 机制未单独解构，只确认了污染网格与基因。
+V18-OQ05	resolved	Odyssey 的太空层（`PlanetLayer` 多层级、`GravshipController` 起降）只确认存在，细节属 V10 遗留。
+V19-OQ01	resolved	`RegionAndRoomUpdater` 的重建触发粒度（哪些事件会触发整片重建、哪些走增量）未解构。
+V19-OQ02	resolved	`PathingContext` 的多层 `PathGridDef`（普通/水道/空中？）各自代价公式未展开。
+V19-OQ03	resolved	`Room` 的 `RoomStat`（感染率、美观、空间）如何由区群与家具聚合，属 V13 数据面。
+V19-OQ04	resolved	`ProperRoom` 之外还有 `IsPrisonCell` / `IsHuge` 等衍生标记，其判定未读。
+V20-OQ01	resolved	`PreceptComp_GoodwillSituation` 的具体修正公式未展开（戒律如何映射成好感增量）。
+V20-OQ02	resolved	`PreceptComp_UnwillingToDo*`（拒绝工作）对社交的连带影响未评估。
+V20-OQ03	resolved	「意见 → 权重」的曲线形状（各 `InteractionWorker` 的 `SimpleCurve` 控制点）未逐条取点。
+V20-OQ04	resolved	异种类型（Biotech）与 Ideology 的交叉影响（同一互动在不同 xenotype 间的权重差）未验证。
+V21-OQ01	resolved	`PawnRenderTreeDef` 的节点布局数据（Def 面）与 `Properties` 的对应关系未逐条展开。
+V21-OQ02	resolved	`ParallelPreDraw` 的并行度与 `Waylith` 引擎侧配合方式受语料缺失限制（见 `state.md`）。
+V21-OQ03	resolved	动画部件（`AnimationPart`）与节点矩阵的合成顺序未细读。
+V21-OQ04	resolved	DLC（Biotech 异种器官、Anomaly 变异体）新增的节点 Properties 清单未统计。
+V22-OQ01	runtime-only	**`BlockingCollection` 满时的阻塞语义**：容量 = `FramesInFlight` 意味着队列满会阻塞主线程，但队列满的实际触发条件（GPU 提交延迟 vs 队列深度配置）未实测。
+V22-OQ02	resolved	`FrameRenderer` 的 `RenderToMainThreadDispatcher` 与 `AddNextFrameCallback` 两条回调路径的合并/顺序未细读。
+V22-OQ03	resolved	`GraphicsDevice`（1430 行）的交换链获取/呈现细节、`VkRenderPass` 复用策略未展开。
+V22-OQ04	resolved	音频后端与 `AudioBackend.SetOutputPaused` 的线程归属（是否自建音频线程）未确认。
+V22-OQ05	resolved	`EngineApplication` 的 `ThrottleToTargetFrameRate` 具体算法（睡眠 / 忙等 / 混合）未读。

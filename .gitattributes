@@ -1,0 +1,8 @@
+# 统一按文本处理，避免 Windows/Linux 换行差异
+* text=auto
+
+# 文档与脚本使用 LF，便于 diff
+*.md   text eol=lf
+*.ps1  text eol=crlf
+*.tsv  text eol=lf
+*.log  text eol=lf
