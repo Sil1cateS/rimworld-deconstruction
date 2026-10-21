@@ -1456,3 +1456,25 @@ P3 完成：
 - README 章节：`## 声明`（85）→ AI 使用声明（87）/ 游戏本体声明（94）/ 使用限制（100）→ 版权与范围（106）
 - 「利益无关」「许可证」在 README 中已无命中；「仅供学习」「利益相关」各 1 处
 - 内链检查 bad_links=0
+----------------------------------------------------------------
+
+2026-10-21T13:53:08+08:00 | Git 初始化与首次提交 | 轮次：发布准备 | 类型：版本控制操作（用户已确认）
+
+概况：在项目目录初始化 git 仓库，按清单暂存 72 个文件并创建首次提交 `50c336d`，分支 `main`；未配置 remote。
+原因：用户确认「可以开始 git 操作了」。
+
+操作与结果：
+- `git init -b main` → `Initialized empty Git repository .../.git/`
+- `git status --porcelain` 复核：11 个顶层未跟踪项；`--ignored` 确认 `00_PROJECT_RULES.md`、`01_PROJECT_PLAN.md`、`RimWorld/`、`analysis/decompiled/`、`logs/*.log` 均被忽略
+- `git add`（逐路径，非 `-A`）：.gitattributes、.gitignore、README.md、DELIVERY.md、HANDOFF.md、project.log、state.md、analysis/index、docs、scripts、logs/GATE.log
+- 暂存复核：72 文件；目录分布 docs=50、scripts=10、analysis=4、根=7、logs=1；无误入被忽略内容；唯一 >1 MB 文件为 `analysis/index/types.tsv`（1.6 MB）
+- `git commit` → `50c336d RimWorld 1.7 deconstruction: v3 24 volumes + verification toolchain`
+- 提交后 `git status --short` 为空；`git ls-files` = 72；`.git` 占 0.75 MB
+
+备注：
+- 行尾按 `.gitattributes` 规范化：md/tsv/log → LF，ps1 → CRLF（git 提示既有工作区文件将被转换）
+- 未配置 remote，未 push；仓库地址待用户提供
+
+验证：
+- `git log --oneline -1` → `50c336d ...`（exit 0）
+- `git status --short` → 空（工作区干净）

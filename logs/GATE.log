@@ -61,3 +61,4 @@
 2026-10-21T13:43:24+08:00	gitignore-governance	level=L1	cmd=none（配置变更，未运行脚本）	exit=0	files=.gitignore + 01_PROJECT_PLAN.md	ignored=00_PROJECT_RULES.md,01_PROJECT_PLAN.md	upload_files=72	upload_MB=2.77	exempt=未 git init，未实测 check-ignore
 2026-10-21T13:46:04+08:00	readme-disclosures	level=L1	cmd=powershell -NoProfile -ExecutionPolicy Bypass -File scripts\lint-docs.ps1 -Profile v3 -DocsRoot docs\mechanisms-v3	exit=0	readme_sections=+3	bad_links=0	v3=24/451/0	files=README.md	exempt=README 不在 lint 扫描范围；未跑 v1/backtest
 2026-10-21T13:50:43+08:00	readme-disclosure-edit	level=L1	cmd=none（README 文本修改，未运行脚本）	exit=0	removed=利益无关声明,许可证声明	added=使用限制	files=README.md + 01_PROJECT_PLAN.md	bad_links=0	exempt=未跑 lint/verify（README 不在扫描范围）
+2026-10-21T13:53:08+08:00	git-init-commit	level=L1	cmd=git init -b main; git add <explicit paths>; git commit -m ...	exit=0	files_staged=72	commit=50c336d	branch=main	repo_MB=0.75	remote=none	files=.git/	exempt=未配置 remote、未 push
