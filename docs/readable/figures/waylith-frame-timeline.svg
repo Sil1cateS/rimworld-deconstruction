@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1760" height="3243" viewBox="0 0 1760 3243" role="img" aria-labelledby="title description">
+<title id="title">Waylith 帧交接：等待、唤醒与返回</title>
+<desc id="description">五个参与者分四段展示：队列满与空、提交槽位和图像获取、CPU 与 GPU 并行推进，以及可选维护等待。各段分别阅读，不代表每帧经历全部等待。</desc>
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#34506a"/></marker></defs>
+<style>text{font-family:"Microsoft YaHei","Noto Sans CJK SC",sans-serif;font-size:19px;fill:#17324d}.small{font-size:17px}.heading{font-size:20px;font-weight:700}.title{font-size:31px;font-weight:700}.lane{stroke:#c2cbd5;stroke-width:1.2;stroke-dasharray:6 7}.message{stroke:#34506a;stroke-width:1.8;fill:none;marker-end:url(#arrow)}</style>
+<rect width="1760" height="3243" fill="#fff"/>
+<text x="42" y="47" text-anchor="start" class="title"><tspan x="42" dy="0">Waylith 帧交接：等待、唤醒与返回</tspan></text>
+<text x="44" y="83" text-anchor="start" class="small"><tspan x="44" dy="0">实线：调用、请求或提交　｜　虚线：返回、等待解除或同步信号　｜　黄色：条件成立时的阻塞</tspan></text>
+<text x="44" y="112" text-anchor="start" class="small"><tspan x="44" dy="0">箭头是同步关系示意；等待 API 在调用线程执行。各片段独立阅读，图高不表示耗时。</tspan></text>
+<rect x="24" y="263" width="1712" height="763" rx="9" fill="#f6f8fc" stroke="#c8d3df" stroke-width="1.2"/>
+<rect x="24" y="1042" width="1712" height="667" rx="9" fill="#f6f8fc" stroke="#c8d3df" stroke-width="1.2"/>
+<rect x="24" y="1725" width="1712" height="881" rx="9" fill="#f6f8fc" stroke="#c8d3df" stroke-width="1.2"/>
+<rect x="24" y="2622" width="1712" height="545" rx="9" fill="#f6f8fc" stroke="#c8d3df" stroke-width="1.2"/>
+<rect x="36" y="346" width="1688" height="662" rx="9" fill="#fffdf6" stroke="#c8d3df" stroke-width="1.2"/>
+<rect x="36" y="1178" width="1688" height="126" rx="9" fill="#fffdf6" stroke="#c8d3df" stroke-width="1.2"/>
+<rect x="36" y="1414" width="1688" height="126" rx="9" fill="#fffdf6" stroke="#c8d3df" stroke-width="1.2"/>
+<rect x="36" y="1808" width="1688" height="780" rx="9" fill="#edf5fc" stroke="#c8d3df" stroke-width="1.2"/>
+<rect x="36" y="2803" width="1688" height="277" rx="9" fill="#fffdf6" stroke="#c8d3df" stroke-width="1.2"/>
+<line class="lane" x1="160" y1="178" x2="160" y2="3215"/>
+<rect x="20" y="133" width="280" height="48" rx="8" fill="#e9f0f7" stroke="#9eb1c4"/>
+<text x="160" y="164" text-anchor="middle" font-weight="700"><tspan x="160" dy="0">主线程</tspan></text>
+<line class="lane" x1="520" y1="178" x2="520" y2="3215"/>
+<rect x="380" y="133" width="280" height="48" rx="8" fill="#e9f0f7" stroke="#9eb1c4"/>
+<text x="520" y="164" text-anchor="middle" font-weight="700"><tspan x="520" dy="0">帧队列（同步容器）</tspan></text>
+<line class="lane" x1="880" y1="178" x2="880" y2="3215"/>
+<rect x="740" y="133" width="280" height="48" rx="8" fill="#e9f0f7" stroke="#9eb1c4"/>
+<text x="880" y="164" text-anchor="middle" font-weight="700"><tspan x="880" dy="0">渲染线程</tspan></text>
+<line class="lane" x1="1240" y1="178" x2="1240" y2="3215"/>
+<rect x="1100" y="133" width="280" height="48" rx="8" fill="#e9f0f7" stroke="#9eb1c4"/>
+<text x="1240" y="164" text-anchor="middle" font-weight="700"><tspan x="1240" dy="0">GPU 图形工作</tspan></text>
+<line class="lane" x1="1600" y1="178" x2="1600" y2="3215"/>
+<rect x="1460" y="133" width="280" height="48" rx="8" fill="#e9f0f7" stroke="#9eb1c4"/>
+<text x="1600" y="164" text-anchor="middle" font-weight="700"><tspan x="1600" dy="0">交换链 / 呈现路径</tspan></text>
+<rect x="70" y="194" width="1620" height="51" rx="7" fill="#e4edf6" stroke="#c2d3e4"/>
+<text x="880" y="224" text-anchor="middle" class="heading"><tspan x="880" dy="0">四段分别阅读；展示等待条件与解除过程，不表示每帧依次经历全部等待</tspan></text>
+<rect x="70" y="277" width="1620" height="51" rx="7" fill="#e4edf6" stroke="#c2d3e4"/>
+<text x="880" y="307" text-anchor="middle" class="heading"><tspan x="880" dy="0">① 队列交接：两种条件下，谁在等谁</tspan></text>
+<rect x="50" y="350" width="55" height="28" rx="4" fill="#f3e7bd"/>
+<text x="77" y="371" text-anchor="middle" class="small" font-weight="700"><tspan x="77" dy="0">alt</tspan></text>
+<text x="120" y="372" text-anchor="start" class="small"><tspan x="120" dy="0">队列已满：主线程等待空位</tspan></text>
+<rect x="238.375" y="391" width="203.25" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="340" y="412" text-anchor="middle" ><tspan x="340" dy="0">Add(新包)：尝试入队</tspan></text>
+<line class="message" x1="160" y1="424" x2="520" y2="424" />
+<rect x="36" y="442" width="300" height="51" rx="7" fill="#fff0c7" stroke="#d2a74e"/>
+<text x="186" y="472" text-anchor="middle" ><tspan x="186" dy="0">主线程阻塞在 Add</tspan></text>
+<rect x="596" y="513" width="208" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="700" y="534" text-anchor="middle" ><tspan x="700" dy="0">取走一个已排队的旧包</tspan></text>
+<line class="message" x1="880" y1="546" x2="520" y2="546" />
+<rect x="586.5" y="566" width="227" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="700" y="587" text-anchor="middle" ><tspan x="700" dy="0">返回旧包，后续处理省略</tspan></text>
+<line class="message" x1="520" y1="599" x2="880" y2="599" stroke-dasharray="7 5"/>
+<rect x="205.60000000000002" y="619" width="268.79999999999995" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="340" y="640" text-anchor="middle" ><tspan x="340" dy="0">有空位，新包加入；Add 返回</tspan></text>
+<line class="message" x1="520" y1="652" x2="160" y2="652" stroke-dasharray="7 5"/>
+<line x1="50" x2="1710" y1="673" y2="673" stroke="#adbccc" stroke-dasharray="5 5"/>
+<rect x="58" y="678" width="273" height="27" fill="#fff"/>
+<text x="70" y="699" text-anchor="start" class="small" font-weight="700"><tspan x="70" dy="0">队列为空：渲染线程等待数据</tspan></text>
+<rect x="596" y="715" width="208" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="700" y="736" text-anchor="middle" ><tspan x="700" dy="0">渲染线程尝试取下一包</tspan></text>
+<line class="message" x1="880" y1="748" x2="520" y2="748" />
+<rect x="730" y="766" width="300" height="51" rx="7" fill="#fff0c7" stroke="#d2a74e"/>
+<text x="880" y="796" text-anchor="middle" ><tspan x="880" dy="0">渲染线程阻塞等待数据</tspan></text>
+<rect x="219.375" y="837" width="241.25" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="340" y="858" text-anchor="middle" ><tspan x="340" dy="0">Add(新包)：数据变为可用</tspan></text>
+<line class="message" x1="160" y1="870" x2="520" y2="870" />
+<rect x="291.1" y="890" width="97.80000000000001" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="340" y="911" text-anchor="middle" ><tspan x="340" dy="0">Add 返回</tspan></text>
+<line class="message" x1="520" y1="923" x2="160" y2="923" stroke-dasharray="7 5"/>
+<rect x="596" y="943" width="208" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="700" y="964" text-anchor="middle" ><tspan x="700" dy="0">等待解除，取到数据包</tspan></text>
+<line class="message" x1="520" y1="976" x2="880" y2="976" stroke-dasharray="7 5"/>
+<rect x="70" y="1056" width="1620" height="51" rx="7" fill="#e4edf6" stroke="#c2d3e4"/>
+<text x="880" y="1086" text-anchor="middle" class="heading"><tspan x="880" dy="0">② 已取出 A：等待提交槽位，再获取图像</tspan></text>
+<rect x="899" y="1127" width="321.9999999999999" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1060" y="1148" text-anchor="middle" ><tspan x="1060" dy="0">CPU 调用 WaitForFences(旧槽位)</tspan></text>
+<line class="message" x1="880" y1="1160" x2="1240" y2="1160" />
+<rect x="50" y="1182" width="55" height="28" rx="4" fill="#f3e7bd"/>
+<text x="77" y="1203" text-anchor="middle" class="small" font-weight="700"><tspan x="77" dy="0">opt</tspan></text>
+<text x="120" y="1204" text-anchor="start" class="small"><tspan x="120" dy="0">旧槽位的 fence 尚未触发</tspan></text>
+<rect x="730" y="1221" width="300" height="51" rx="7" fill="#fff0c7" stroke="#d2a74e"/>
+<text x="880" y="1251" text-anchor="middle" ><tspan x="880" dy="0">渲染线程等待旧图形提交完成</tspan></text>
+<rect x="915.15" y="1310" width="289.70000000000005" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1060" y="1331" text-anchor="middle" ><tspan x="1060" dy="0">fence 条件满足，等待调用返回</tspan></text>
+<line class="message" x1="1240" y1="1343" x2="880" y2="1343" stroke-dasharray="7 5"/>
+<rect x="1131.725" y="1363" width="216.54999999999995" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1240" y="1384" text-anchor="middle" ><tspan x="1240" dy="0">AcquireNextImageKHR</tspan></text>
+<line class="message" x1="880" y1="1396" x2="1600" y2="1396" />
+<rect x="50" y="1418" width="55" height="28" rx="4" fill="#f3e7bd"/>
+<text x="77" y="1439" text-anchor="middle" class="small" font-weight="700"><tspan x="77" dy="0">opt</tspan></text>
+<text x="120" y="1440" text-anchor="start" class="small"><tspan x="120" dy="0">暂时没有可获取的图像</tspan></text>
+<rect x="730" y="1457" width="300" height="51" rx="7" fill="#fff0c7" stroke="#d2a74e"/>
+<text x="880" y="1487" text-anchor="middle" ><tspan x="880" dy="0">渲染线程等待图像获取返回</tspan></text>
+<rect x="1120.325" y="1546" width="239.35" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1240" y="1567" text-anchor="middle" ><tspan x="1240" dy="0">返回图像编号 / 获取状态</tspan></text>
+<line class="message" x1="1600" y1="1579" x2="880" y2="1579" stroke-dasharray="7 5"/>
+<rect x="897" y="1599" width="185" height="54" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="904" y="1620" text-anchor="start" ><tspan x="904" dy="0">成功路径：回收旧包</tspan><tspan x="904" dy="27">记录 A 的指令</tspan></text>
+<path class="message" d="M 880 1659 h 98 v 23 h -98" />
+<rect x="70" y="1739" width="1620" height="51" rx="7" fill="#e4edf6" stroke="#c2d3e4"/>
+<text x="880" y="1769" text-anchor="middle" class="heading"><tspan x="880" dy="0">③ 各自继续：三条分支可交错，分别满足自身依赖</tspan></text>
+<rect x="50" y="1812" width="55" height="28" rx="4" fill="#d3e7f7"/>
+<text x="77" y="1833" text-anchor="middle" class="small" font-weight="700"><tspan x="77" dy="0">par</tspan></text>
+<text x="120" y="1834" text-anchor="start" class="small"><tspan x="120" dy="0">主线程：Add 返回后即可继续</tspan></text>
+<rect x="177" y="1853" width="273.3499999999999" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="184" y="1874" text-anchor="start" ><tspan x="184" dy="0">FrameEnqueued → EndFrame</tspan></text>
+<path class="message" d="M 160 1886 h 98 v 23 h -98" />
+<rect x="177" y="1924" width="261" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="184" y="1945" text-anchor="start" ><tspan x="184" dy="0">限速后，进入后续更新与采集</tspan></text>
+<path class="message" d="M 160 1957 h 98 v 23 h -98" />
+<line x1="50" x2="1710" y1="1996" y2="1996" stroke="#adbccc" stroke-dasharray="5 5"/>
+<rect x="58" y="2001" width="323.34999999999997" height="27" fill="#fff"/>
+<text x="70" y="2022" text-anchor="start" class="small" font-weight="700"><tspan x="70" dy="0">渲染线程：完成 A 的获取与记录后</tspan></text>
+<rect x="918" y="2038" width="283.9999999999999" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1060" y="2059" text-anchor="middle" ><tspan x="1060" dy="0">Submit(A)：等待 ImageReady</tspan></text>
+<line class="message" x1="880" y1="2071" x2="1240" y2="2071" />
+<rect x="1093.25" y="2091" width="293.5" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1240" y="2112" text-anchor="middle" ><tspan x="1240" dy="0">PresentKHR：等待图像完成信号</tspan></text>
+<line class="message" x1="880" y1="2124" x2="1600" y2="2124" />
+<rect x="897" y="2144" width="217.29999999999993" height="54" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="904" y="2165" text-anchor="start" ><tspan x="904" dy="0">保留 A → FrameEnded</tspan><tspan x="904" dy="27">→ pending 减一</tspan></text>
+<path class="message" d="M 880 2204 h 98 v 23 h -98" />
+<line x1="50" x2="1710" y1="2243" y2="2243" stroke="#adbccc" stroke-dasharray="5 5"/>
+<rect x="58" y="2248" width="276.8" height="27" fill="#fff"/>
+<text x="70" y="2269" text-anchor="start" class="small" font-weight="700"><tspan x="70" dy="0">GPU 与呈现：收到提交后推进</tspan></text>
+<rect x="1257" y="2285" width="244.85" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1264" y="2306" text-anchor="start" ><tspan x="1264" dy="0">ImageReady 满足后执行 A</tspan></text>
+<path class="message" d="M 1240 2318 h 98 v 23 h -98" />
+<rect x="1090" y="2354" width="300" height="78" rx="7" fill="#e4edf6" stroke="#c2d3e4"/>
+<text x="1240" y="2384" text-anchor="middle" ><tspan x="1240" dy="0">提交完成的 fence 供后续 CPU</tspan><tspan x="1240" dy="27"> 等待；它不表示屏幕已显示</tspan></text>
+<rect x="1264.7" y="2452" width="310.59999999999985" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1420" y="2473" text-anchor="middle" ><tspan x="1420" dy="0">rendering-finished semaphore</tspan></text>
+<line class="message" x1="1240" y1="2485" x2="1600" y2="2485" stroke-dasharray="7 5"/>
+<rect x="1341" y="2505" width="242" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="1576" y="2526" text-anchor="end" ><tspan x="1576" dy="0">按平台调度处理并显示图像</tspan></text>
+<path class="message" d="M 1600 2538 h -98 v 23 h 98" />
+<rect x="70" y="2636" width="1620" height="51" rx="7" fill="#e4edf6" stroke="#c2d3e4"/>
+<text x="880" y="2666" text-anchor="middle" class="heading"><tspan x="880" dy="0">④ 可选维护片段：重建等路径等待渲染线程 CPU 空闲</tspan></text>
+<rect x="177" y="2707" width="204.94999999999993" height="54" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="184" y="2728" text-anchor="start" ><tspan x="184" dy="0">WaitUntilIdle</tspan><tspan x="184" dy="27">内部调用 _idle.Wait</tspan></text>
+<path class="message" d="M 160 2767 h 98 v 23 h -98" />
+<rect x="50" y="2807" width="55" height="28" rx="4" fill="#f3e7bd"/>
+<text x="77" y="2828" text-anchor="middle" class="small" font-weight="700"><tspan x="77" dy="0">opt</tspan></text>
+<text x="120" y="2829" text-anchor="start" class="small"><tspan x="120" dy="0">pending 尚未归零</tspan></text>
+<rect x="36" y="2846" width="300" height="51" rx="7" fill="#fff0c7" stroke="#d2a74e"/>
+<text x="186" y="2876" text-anchor="middle" ><tspan x="186" dy="0">主线程等待渲染线程处理收尾</tspan></text>
+<rect x="897" y="2917" width="191.64999999999998" height="54" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="904" y="2938" text-anchor="start" ><tspan x="904" dy="0">MarkFrameComplete</tspan><tspan x="904" dy="27">使 pending 归零</tspan></text>
+<path class="message" d="M 880 2977 h 98 v 23 h -98" />
+<rect x="363.75" y="3015" width="312.5" height="27" fill="#fff" fill-opacity="0.94" rx="3"/>
+<text x="520" y="3036" text-anchor="middle" ><tspan x="520" dy="0">_idle.Set 解除等待，主线程继续</tspan></text>
+<line class="message" x1="880" y1="3048" x2="160" y2="3048" stroke-dasharray="7 5"/>
+<rect x="70" y="3084" width="1620" height="51" rx="7" fill="#e4edf6" stroke="#c2d3e4"/>
+<text x="880" y="3114" text-anchor="middle" class="heading"><tspan x="880" dy="0">设备工作空闲另由 Device.WaitIdle 等调用确认，按具体维护路径执行</tspan></text>
+<text x="44" y="3230" text-anchor="start" class="small"><tspan x="44" dy="0">正常成功路径与条件片段的源码关系示意；没有假设具体等待时长或固定的跨线程先后。</tspan></text>
+</svg>

@@ -1,0 +1,115 @@
+digraph WaylithOverview {
+  graph [
+    rankdir=TB,
+    bgcolor="#FFFFFF",
+    pad="0.28",
+    nodesep="0.48",
+    ranksep="0.62",
+    splines=spline,
+    compound=true,
+    newrank=true,
+    fontname="Microsoft YaHei",
+    fontsize=24,
+    fontcolor="#152C43",
+    labelloc=t,
+    label="Waylith 模块概览\n启动配置 · 游戏更新 · 渲染交接"
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    color="#B6C5D2",
+    fillcolor="#FFFFFF",
+    fontname="Microsoft YaHei",
+    fontsize=15,
+    fontcolor="#193247",
+    margin="0.19,0.15",
+    penwidth=1.3
+  ];
+  edge [
+    color="#526A80",
+    fontname="Microsoft YaHei",
+    fontsize=12,
+    fontcolor="#526A80",
+    arrowsize=0.75,
+    penwidth=1.4
+  ];
+
+  subgraph cluster_startup {
+    label="启动与配置｜进入循环之前";
+    fontsize=16;
+    color="#D8DEE8";
+    fillcolor="#F7F8FB";
+    style="rounded,filled";
+    margin=20;
+    entry [label="Program.Main → EngineApplication.Run\n准备配置并创建引擎应用"];
+    boot [label="Bootstrap.Initialize\n配置兼容运行时、更新回调与渲染特性", fillcolor="#F0EBFA", color="#B3A0D6"];
+    entry -> boot [label="调用初始化函数"];
+  }
+
+  subgraph cluster_main {
+    label="主线程｜游戏更新与渲染数据采集";
+    fontsize=17;
+    color="#A9C9E2";
+    fillcolor="#F2F8FD";
+    style="rounded,filled";
+    margin=24;
+
+    loop [label="EngineApplication.RunLoop\n计时、输入、窗口状态与限速\n分别处理两个待执行函数队列", fillcolor="#DDEDFC", color="#5F94C1", penwidth=1.7];
+    bridge [label="游戏更新回调\nBootstrap 注册的 OnUpdate\nUnityRuntime.Step → UnityWorld"];
+    game [label="游戏层运行\nVerse / RimWorld\nRoot_Play、Game、地图、实体等"];
+    capture [label="FrameRenderer\nBeginMainThreadFrame\nCaptureFrame", fillcolor="#E1F0F4", color="#6EA6B3", penwidth=1.7];
+    features [label="渲染特性 IRenderFeature\nWorld · Map · ImGui · 其他特性\n读取状态并准备各自的绘制数据"];
+
+    { rank=same; loop; bridge; game; }
+    { rank=same; capture; features; }
+    loop -> bridge [label="① 执行更新回调"];
+    bridge -> game [label="分发生命周期消息"];
+    loop -> capture [label="② 更新返回后采集", minlen=1];
+    game -> features [label="状态、相机与绘制提交", style=dashed, color="#2985AD", fontcolor="#217694"];
+    capture -> features [label="调用主线程准备与采集"];
+    features -> capture [label="返回本轮绘制数据", style=dashed, color="#2985AD", fontcolor="#217694", constraint=false];
+  }
+
+  queue [
+    label="RenderFrame → 有界队列\n渲染数据包 · BlockingCollection\nRenderThread.Enqueue：队列满时等待",
+    fillcolor="#E5F5F6",
+    color="#3999A1",
+    penwidth=1.7
+  ];
+
+  subgraph cluster_render {
+    label="渲染线程｜取出数据，记录并提交指令";
+    fontsize=17;
+    color="#A9D2C3";
+    fillcolor="#F1F9F5";
+    style="rounded,filled";
+    margin=24;
+    consume [label="RenderThread.RenderLoop\n从队列取出数据\n尝试获取可用的绘制资源"];
+    record [label="FrameRenderer.RecordFrame\n调用各模块的绘制代码\n将已采集数据记录为 Vulkan 指令"];
+    submit [label="WindowRenderContext / GraphicsDevice\nTrySubmitFrame\n图形队列提交与 Present 请求"];
+    { rank=same; consume; record; submit; }
+    consume -> record [label="资源获取成功后"];
+    record -> submit [label="完成指令记录"];
+  }
+
+  gpu [
+    label="图形驱动与 GPU\n执行已提交的工作，经呈现流程输出画面",
+    fillcolor="#EBEEF4",
+    color="#8998AE"
+  ];
+
+  boot -> loop [label="初始化返回后，进入 RunLoop", minlen=1];
+  boot -> bridge [label="注册更新回调", style=dotted, color="#9170BD", fontcolor="#8060AC", constraint=false];
+  boot -> features [label="安装渲染特性", style=dotted, color="#9170BD", fontcolor="#8060AC", constraint=false];
+  capture -> queue [label="③ 组装 RenderFrame 并入队", style=dashed, color="#2985AD", fontcolor="#217694"];
+  queue -> consume [label="渲染线程从队列取出数据包", style=dashed, color="#2985AD", fontcolor="#217694", minlen=1];
+  submit -> gpu [label="指令与呈现请求", style=dashed, color="#2985AD", fontcolor="#217694"];
+
+  legend [
+    shape=plain,
+    fontsize=11,
+    fontcolor="#526A80",
+    label="实线：调用 / 执行　　蓝色虚线：数据　　紫色点线：启动注册\n①②③ 表示主线程的先后顺序；渲染线程可与主线程后续工作重叠。"
+  ];
+  gpu -> legend [style=invis];
+}

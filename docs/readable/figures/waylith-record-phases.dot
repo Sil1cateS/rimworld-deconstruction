@@ -1,0 +1,46 @@
+digraph WaylithRecordPhases {
+  graph [rankdir=TB, bgcolor="white", pad="0.28", nodesep="0.42", ranksep="0.47", splines=polyline, compound=true, newrank=true, fontname="Microsoft YaHei", fontsize=23, fontcolor="#17324d", labelloc=t, label="RecordFrame：先按阶段，再遍历特性与 pass\n右侧用统一 i / j 表示源码中三轮相似的嵌套循环"];
+  node [shape=box, style="rounded,filled", fillcolor="#eef4fa", color="#a7bacd", fontname="Microsoft YaHei", fontsize=14, fontcolor="#17324d", margin="0.16,0.12", penwidth=1.2];
+  edge [color="#526a81", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.7, penwidth=1.2];
+  subgraph cluster_phases {
+    label="整次 RecordFrame 的阶段顺序";
+    fontname="Microsoft YaHei"; fontsize=16; color="#c7d5e3"; style=rounded;
+    prep [label="执行一次性回调\n必要时补齐目标重建通知"];
+    pre [label="第一轮：前置 pass\n条件：PreBackbuffer", fillcolor="#e6f3eb"];
+    begin [label="BeginRenderPass\n主目标、范围与清除值"];
+    middle [label="第二轮：普通 pass\n条件：非前置且非 IPostBackbufferPass", fillcolor="#e6f3eb"];
+    endmain [label="EndRenderPass"];
+    post [label="第三轮：后置 pass\n条件：IPostBackbufferPass", fillcolor="#e6f3eb"];
+    done [label="返回调用方\n随后结束指令缓冲并提交"];
+    prep -> pre -> begin -> middle -> endmain -> post -> done;
+  }
+  subgraph cluster_loop {
+    label="每一轮的共同遍历结构（讲述用归纳）";
+    fontname="Microsoft YaHei"; fontsize=16; color="#c7d5e3"; style=rounded;
+    init [label="从 frame.Features 开始\ni = 0"];
+    icheck [shape=diamond, style=filled, fillcolor="#fff2ce", label="还有特性 i？"];
+    active [shape=diamond, style=filled, fillcolor="#fff2ce", label="帧内保存的\n活动标记为 true？"];
+    data [label="取该特性的 payload 与 Passes\nj = 0"];
+    jcheck [shape=diamond, style=filled, fillcolor="#fff2ce", label="还有 pass j？"];
+    eligible [shape=diamond, style=filled, fillcolor="#fff2ce", label="符合本轮阶段条件？"];
+    call [label="按阶段准备上下文\npass.Record(ctx, payload)", fillcolor="#e6f3eb"];
+    jnext [label="j 增一"];
+    inext [label="i 增一"];
+    phaseend [label="这一轮遍历结束"];
+    init -> icheck;
+    icheck -> phaseend [label="否"];
+    icheck -> active [label="是"];
+    active -> data [label="是"];
+    active -> inext [label="否"];
+    data -> jcheck;
+    jcheck -> inext [label="否"];
+    jcheck -> eligible [label="是"];
+    eligible -> call [label="是"];
+    eligible -> jnext [label="否"];
+    call -> jnext;
+    jnext -> jcheck [label="下一 pass", constraint=false];
+    inext -> icheck [label="下一特性", constraint=false];
+  }
+  {rank=same; prep; init;}
+  pre -> init [style=dotted, color="#9672ad", label="三轮均有此结构\n非独立方法调用", constraint=false];
+}

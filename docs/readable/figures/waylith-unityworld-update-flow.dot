@@ -1,0 +1,29 @@
+digraph UnityWorldUpdateFlow {
+  graph [rankdir=TB, compound=true, bgcolor="white", pad="0.28", nodesep="0.38", ranksep="0.34", splines=polyline, fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="UnityWorld：一次 Update 与 LateUpdate\n主线程顺序执行；组件状态在各调用位置检查"];
+  node [shape=box, style="rounded,filled", fillcolor="#eef4fa", color="#a7bacd", fontname="Microsoft YaHei", fontsize=13, fontcolor="#17324d", margin="0.16,0.10", penwidth=1.2];
+  edge [color="#526a81", fontname="Microsoft YaHei", fontsize=11, fontcolor="#415b73", arrowsize=0.7, penwidth=1.2];
+
+  subgraph cluster_update {
+    label="① UnityWorld.Update"; color="#abc8bb"; style="rounded"; bgcolor="#f8fcf9"; fontsize=17; margin=16;
+    destroy1 [label="ProcessPendingDestroy\n取出当前一批销毁请求，逐个处理", fillcolor="#f5edfa"];
+    activate [label="FlushPendingActivation\n每批排序、复制并清空待处理记录\n先遍历 Awake，再遍历 OnEnable"];
+    start [label="FlushPendingStart\n每批排序、复制并清空待处理记录\n逐个检查，调用 Start 并标记", fillcolor="#e6f3eb"];
+    updating [label="Updating.Invoke(frame)\n调用这一阶段登记的函数"];
+    update [label="复制此时的 Behaviour 名单\n逐个检查活动、未销毁 → 调用 Update", fillcolor="#e6f3eb"];
+    post [label="PostUpdate.Invoke(frame)\n随后返回 Step"];
+    destroy1 -> activate -> start -> updating -> update -> post;
+    activate -> activate [label="仍有新增批次\n继续处理", color="#8d77a8"];
+    start -> start [label="仍有新增批次\n继续处理", color="#8d77a8"];
+  }
+  subgraph cluster_late {
+    label="② UnityWorld.LateUpdate"; color="#aec2da"; style="rounded"; bgcolor="#f8fafc"; fontsize=17; margin=16;
+    lateevent [label="LateUpdating.Invoke(frame)\n调用这一阶段登记的函数"];
+    late [label="重新复制此时的 Behaviour 名单\n逐个检查活动、未销毁 → 调用 LateUpdate", fillcolor="#e6f3eb"];
+    destroy2 [label="ProcessPendingDestroy\n取出当前一批销毁请求，逐个处理", fillcolor="#f5edfa"];
+    postlate [label="PostLateUpdate.Invoke(frame)\n协程、渲染组件驱动等可在此执行"];
+    lateevent -> late -> destroy2 -> postlate;
+  }
+  camera [label="返回 Step → 调用屏幕相机相关函数\nStep 返回 OnUpdate，随后才到渲染采集", fillcolor="#edf0f3"];
+  post -> lateevent [label="Step 继续下一次调用", ltail=cluster_update, lhead=cluster_late];
+  postlate -> camera;
+}

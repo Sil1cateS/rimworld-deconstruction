@@ -1,0 +1,63 @@
+sequenceDiagram
+    participant M as 主线程
+    participant Q as 帧队列（同步容器）
+    participant R as 渲染线程
+    participant G as GPU 图形工作
+    participant P as 交换链 / 呈现路径
+    Note over M,P: 四段分别阅读；展示等待条件与解除过程，不表示每帧依次经历全部等待
+    rect rgb(246, 248, 252)
+        Note over M,P: ① 队列交接：两种条件下，谁在等谁
+        alt 队列已满：主线程等待空位
+            M->>Q: Add(新包)：尝试入队
+            Note over M: 主线程阻塞在 Add
+            R->>Q: 取走一个已排队的旧包
+            Q-->>R: 返回旧包，后续处理省略
+            Q-->>M: 有空位，新包加入；Add 返回
+        else 队列为空：渲染线程等待数据
+            R->>Q: 渲染线程尝试取下一包
+            Note over R: 渲染线程阻塞等待数据
+            M->>Q: Add(新包)：数据变为可用
+            Q-->>M: Add 返回
+            Q-->>R: 等待解除，取到数据包
+        end
+    end
+    rect rgb(246, 248, 252)
+        Note over M,P: ② 已取出 A：等待提交槽位，再获取图像
+        R->>G: CPU 调用 WaitForFences(旧槽位)
+        opt 旧槽位的 fence 尚未触发
+            Note over R: 渲染线程等待旧图形提交完成
+        end
+        G-->>R: fence 条件满足，等待调用返回
+        R->>P: AcquireNextImageKHR
+        opt 暂时没有可获取的图像
+            Note over R: 渲染线程等待图像获取返回
+        end
+        P-->>R: 返回图像编号 / 获取状态
+        R->>R: 成功路径：回收旧包<br/>记录 A 的指令
+    end
+    rect rgb(246, 248, 252)
+        Note over M,P: ③ 各自继续：三条分支可交错，分别满足自身依赖
+        par 主线程：Add 返回后即可继续
+            M->>M: FrameEnqueued → EndFrame
+            M->>M: 限速后，进入后续更新与采集
+        and 渲染线程：完成 A 的获取与记录后
+            R->>G: Submit(A)：等待 ImageReady
+            R->>P: PresentKHR：等待图像完成信号
+            R->>R: 保留 A → FrameEnded<br/>→ pending 减一
+        and GPU 与呈现：收到提交后推进
+            G->>G: ImageReady 满足后执行 A
+            Note over G: 提交完成的 fence 供后续 CPU 等待；它不表示屏幕已显示
+            G-->>P: rendering-finished semaphore
+            P->>P: 按平台调度处理并显示图像
+        end
+    end
+    rect rgb(246, 248, 252)
+        Note over M,P: ④ 可选维护片段：重建等路径等待渲染线程 CPU 空闲
+        M->>M: WaitUntilIdle<br/>内部调用 _idle.Wait
+        opt pending 尚未归零
+            Note over M: 主线程等待渲染线程处理收尾
+            R->>R: MarkFrameComplete<br/>使 pending 归零
+            R-->>M: _idle.Set 解除等待，主线程继续
+        end
+        Note over M,G: 设备工作空闲另由 Device.WaitIdle 等调用确认，按具体维护路径执行
+    end
