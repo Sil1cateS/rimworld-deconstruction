@@ -1,5 +1,7 @@
 # 从启动到每一帧：Waylith 怎样驱动 RimWorld
 
+版本：v1.0（正式版）｜定稿日期：2026-10-22
+
 本文基于 RimWorld 1.7.4982 rev1280 的反编译代码，说明 Waylith 与兼容层如何组织启动、更新和绘制。
 
 **省流速览：玩家可以先记住这五点**
@@ -1210,6 +1212,8 @@ vkResult = this.queue.PresentKHR(vkPresentInfoKHR);
 | fence | 对应图形提交完成后可供 CPU 等待的标记，后续复用相应提交位置时会等待它 |
 | pending | 图中对 `_pendingFrames` 的简写，记录已登记待处理的数据包数量；入队前增加、收尾时减少，因此可能包括正在等待入队的数据包 |
 | _idle | 等待标记；`_pendingFrames` 归零时设置，使 WaitUntilIdle 中的相应等待结束 |
+
+图中 Submit 与 PresentKHR 的信号量等待随提交登记，由图形队列和呈现路径按相应条件处理；WaitForFences 与 `_idle.Wait` 表示调用线程等待条件满足。ImageReady 的等待作用于提交指定的相关绘制阶段。
 
 源码定位：提交索引（`Waylith.Graphics.RenderContext.cs:163`）、槽位轮转与 fence 等待（`Waylith.Graphics.RenderContext.cs:245`）、图像获取与 ImageReadySemaphore（`Waylith.Graphics.WindowRenderContext.cs:503`）、呈现等待信号（`Waylith.Graphics.WindowRenderContext.cs:415`）、待处理计数与等待标记（`Waylith.Rendering.RenderThread.cs:286`）。
 

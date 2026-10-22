@@ -143,4 +143,4 @@ DLC 各自作为模块组展开，既说明独有实现，也说明它怎样接�
 
 Waylith 的第一轮源码梳理见 [01-waylith-discussion.md](01-waylith-discussion.md)，作为接下来讨论文章边界和技术深度的材料。
 
-Waylith 章节已进入成文整理，正文工作文件为 [章节草稿](chapters/01-waylith/draft.md)，采用上述线性主线；此前共同修订的 [模块汇总稿 v0.2](14-waylith-summary-draft.md) 保留为参考底稿。复杂控制流使用独立图示，保留可编辑图源与 SVG；游戏内部调度继续停在 Game.UpdatePlay 接点，待对应模块展开。
+Waylith 章节提供 [《从启动到每一帧：Waylith 怎样驱动 RimWorld》发布版 v1.0](chapters/01-waylith/release.md) 与 [完整解析版 v1.0](chapters/01-waylith/article.md)，均采用上述线性主线。发布版用简图与案例解释运行逻辑；完整解析版保留源码节选、详细图示和定位。此前共同修订的 [模块汇总稿 v0.2](14-waylith-summary-draft.md) 保留为参考底稿。图示保留可编辑图源与 SVG；游戏内部调度继续停在 Game.UpdatePlay 接点，待对应模块展开。

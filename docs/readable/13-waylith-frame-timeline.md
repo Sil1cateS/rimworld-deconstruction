@@ -58,11 +58,11 @@ sequenceDiagram
             M->>M: FrameEnqueued → EndFrame
             M->>M: 限速后，进入后续更新与采集
         and 渲染线程：完成 A 的获取与记录后
-            R->>G: Submit(A)：等待 ImageReady
-            R->>P: PresentKHR：等待图像完成信号
+            R->>G: Submit(A)<br/>登记 ImageReady 等待条件
+            R->>P: PresentKHR：登记呈现等待条件
             R->>R: 保留 A → FrameEnded<br/>→ pending 减一
         and GPU 与呈现：收到提交后推进
-            G->>G: ImageReady 满足后执行 A
+            G->>G: A 的相关绘制阶段<br/>等待 ImageReady 后继续
             Note over G: 提交完成的 fence 供后续 CPU 等待；它不表示屏幕已显示
             G-->>P: rendering-finished semaphore
             P->>P: 按平台调度处理并显示图像

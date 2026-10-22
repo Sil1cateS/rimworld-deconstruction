@@ -88,7 +88,7 @@ const svg = [
   `<rect width="${W}" height="${H}" fill="#fff"/>`,
   text(['Waylith 帧交接：等待、唤醒与返回'], 42, 47, 'start', 'class="title"'),
   text(['实线：调用、请求或提交　｜　虚线：返回、等待解除或同步信号　｜　黄色：条件成立时的阻塞'], 44, 83, 'start', 'class="small"'),
-  text(['箭头是同步关系示意；等待 API 在调用线程执行。各片段独立阅读，图高不表示耗时。'], 44, 112, 'start', 'class="small"')
+  text(['箭头是同步关系示意；CPU 等待发生在调用线程，信号量等待随提交登记。各片段独立阅读，图高不表示耗时。'], 44, 112, 'start', 'class="small"')
 ];
 for (const b of blocks.sort((a, b) => a.depth - b.depth || a.start - b.start)) {
   const x = 24 + b.depth * 12, width = W - x * 2;

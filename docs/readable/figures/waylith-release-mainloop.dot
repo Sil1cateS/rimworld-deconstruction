@@ -1,0 +1,24 @@
+digraph WaylithReleaseMainLoop {
+  graph [rankdir=TB, bgcolor="white", pad="0.25", nodesep="0.30", ranksep="0.37", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="主线程：这一轮更新与绘制吗？\n普通可见窗口路径，退出与异常分支省略"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.17,0.13", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=13, fontcolor="#415b73", arrowsize=0.7, penwidth=1.2];
+  begin [label="处理渲染回调队列、检查故障\n计时、维护资源、收取输入"];
+  focus [shape=diamond, style=filled, fillcolor="#fff2ce", label="失焦且禁止\n后台运行？"];
+  idle [label="等待窗口事件\n跳过本轮更新与绘制", fillcolor="#f0f1f4", color="#b6c1cd"];
+  target [label="检查绘制条件\n必要时等待并重建绘制目标"];
+  update [label="准备本轮时间和临时内存\n处理主线程待执行函数队列\n调用游戏更新", fillcolor="#e8f4ed", color="#a5cbb8"];
+  draw [shape=diamond, style=filled, fillcolor="#fff2ce", label="本轮允许绘制？"];
+  capture [label="收集绘制数据并入队\n队列满时等待空位", fillcolor="#e8f4ed", color="#a5cbb8"];
+  finish [label="结束本轮\n然后按目标帧率限速", fillcolor="#e8f4ed", color="#a5cbb8"];
+  retire [label="等待并维护图形资源\n限速，再结束本轮", fillcolor="#f1eafa", color="#b8a3d5"];
+  next [label="下一轮重新检查窗口状态", fillcolor="#f0f1f4", color="#b6c1cd"];
+  begin -> focus;
+  focus -> idle [label="是"];
+  focus -> target [label="否"];
+  target -> update -> draw;
+  draw -> capture [label="是"];
+  draw -> retire [label="否"];
+  capture -> finish -> next;
+  retire -> next;
+  idle -> next;
+}

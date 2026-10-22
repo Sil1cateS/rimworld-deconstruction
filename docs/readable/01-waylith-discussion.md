@@ -4,7 +4,7 @@
 
 模块总图见 [Waylith 模块概览](02-waylith-overview.md)。
 
-目前的正文已按一条线性主线重新组织，见 [Waylith 模块汇总稿 v0.2](14-waylith-summary-draft.md)。下文保留第一轮讨论与源码定位，其中“三篇文章”是当时的边界建议。
+正式文章见 [《从启动到每一帧：Waylith 怎样驱动 RimWorld》v1.0](chapters/01-waylith/article.md)；成文前的 [模块汇总稿 v0.2](14-waylith-summary-draft.md) 保留为参考。下文保留第一轮讨论与源码定位，其中“三篇文章”是当时的边界建议。
 
 ## 第一轮的三篇文章边界建议
 
