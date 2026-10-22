@@ -1,16 +1,26 @@
 # 从启动到每一帧：Waylith 怎样驱动 RimWorld
 
-状态：章节成文底稿，承接已共同修订的模块汇总稿 v0.2，待逐段整理为正式文章。依据工作区 RimWorld 1.7.4982 rev1280 的现有反编译语料；本文说明源码中的执行关系，尚未测量实际帧率和显示延迟。
+本文基于 RimWorld 1.7.4982 rev1280 的反编译代码，说明 Waylith 与兼容层如何组织启动、更新和绘制。
+
+**省流速览：玩家可以先记住这五点**
+
+- **游戏更新与渲染可以同时推进。** 主线程接收输入、调用游戏更新并收集绘制数据，渲染线程据此记录和提交绘制指令。两条线程可以重叠工作；仅凭这一分工，还无法判断殖民者 AI、寻路等模拟工作使用了多少 CPU 核心。
+- **渲染变慢也可能拖住后续更新。** 两条线程之间保存绘制数据的队列容量有限。渲染线程处理不过来、队列填满时，主线程会在入队处等待，下一轮更新也会随之推迟。
+- **一次更新完成，到看到对应画面，中间还有工作。** 绘制数据入队返回后，主线程可以继续后续工作；渲染线程还要记录和提交指令，随后由 GPU 执行，再经呈现路径显示。一次输入到画面的响应，会经过这些阶段。
+- **最小化与失焦时，要分别看绘制条件和后台运行设置。** 最小化后，引擎仍有继续调用更新、跳过绘制的路径；失焦后是否继续更新，还受后台运行设置影响。进入更新入口后，暂停等游戏层条件仍会影响模拟推进。
+- **画面流畅度与殖民地模拟速度需要分别看。** 每秒显示多少帧（FPS），与每秒推进多少个游戏 tick（TPS），对应不同的进度。本文中的引擎限速安排主循环的节奏；暂停、倍速和 tick 调度，将在游戏流程章节继续解释。
 
 源码定位采用“命名空间.类型名.cs:行号”，如 `RimWorldWaylith.Bootstrap.cs:749`；行号对应当前反编译文件，供本地核对。反编译语料不随仓库分发。
 
 ## 一、Waylith 总览
 
-在 RimWorld 中，殖民者、地图、界面和声音各有自己的运行逻辑。Waylith 为这些模块提供持续工作的环境：建立窗口与设备，轮询输入和采样时间，调用游戏更新，再把本轮绘制需要的数据交给渲染线程，记录指令、提交图形工作并发起呈现。
+在 RimWorld 的菜单中进行一次鼠标操作，程序需要取得输入，让界面代码判断如何响应，再把当前界面所需的绘制数据交给图形设备。读取输入、改变状态和显示画面，分别发生在运行流程的不同位置。
 
-理解这套环境，可以沿三个问题阅读：谁让程序持续运行，游戏怎样接住一次更新，以及绘制数据怎样跨过线程并成为图像。先用总图确认这些工作的位置，随后沿应用创建、初始化、主线程、渲染线程和提交过程依次阅读。
+Waylith 把这些工作组织到持续运行的循环中。它建立窗口与设备，轮询输入和采样时间，调用游戏更新，再把本轮绘制需要的数据交给渲染线程，记录指令、提交图形工作并发起呈现。殖民者、地图、界面和声音等模块，则通过相应入口取得运行机会。
 
-本文的绘制部分沿引擎调用顺序，说明怎样收集数据、交给渲染线程、记录并提交 Vulkan 指令。渲染特性内部的数据结构、地图与 UI 怎样形成绘制内容，以及各 pass 的具体实现，放入独立渲染模块，在地图、空间和 UI 解析完成之后研究。
+本文从应用创建开始，沿初始化、主线程、渲染线程和提交过程向下阅读，并以菜单中的鼠标操作对照各阶段的作用。输入如何被界面解释、界面元素怎样绘制，由相应模块决定；这里跟随引擎怎样安排和衔接这些工作。
+
+绘制部分覆盖数据采集、线程交接、Vulkan 指令记录、提交与呈现。渲染模块内部的数据结构和具体绘制实现，将在地图、空间和 UI 章节之后继续解释。
 
 ![Waylith 总体结构：启动配置、主线程更新与采集、渲染线程及 GPU](../../figures/waylith-overview.png)
 
@@ -57,7 +67,7 @@ FrameRenderer 是应用创建时就建立的绘制组织对象。它的成员声
 public FrameRenderer FrameRenderer { get; } = new FrameRenderer();
 ```
 
-后续初始化会给它加入地图、世界、界面等模块提供的绘制功能。它先组织主线程上的数据采集，再组织渲染线程上的指令记录；本节先确认它在应用对象中已经存在，具体调用顺序继续往下读。
+初始化会给 FrameRenderer 加入地图、世界、界面等模块提供的绘制功能。进入循环后，它先组织主线程上的数据采集，再组织渲染线程上的指令记录。应用创建时，先建立的是这个负责组织工作的对象。
 
 应用构造也会检查 Headless 选项。带 Headless 开关启动时，会跳过窗口与图形设备的建立；普通有窗口路径继续创建前面所述对象。这个选择发生在启动阶段，后面的最小化或隐藏窗口不会将程序自动切换成 Headless。
 
@@ -102,7 +112,7 @@ public Action OnUpdate;
 
 `Action` 是无参数、无返回值的委托类型。因此 `OnUpdate` 在这里是**保存待调用函数的字段**；它可以为空，也可以保存一个或多个函数。源码使用普通公开字段声明，调用语法则与执行一个无参数函数相似。
 
-这里先解释“回调”：把一个函数交给另一段代码，由那段代码在约定的位置调用它，这个函数就被称为回调函数。这个词描述的是函数的使用方式，普通方法和匿名函数都可以作为回调；实际执行仍然是一次函数调用。单凭“回调”这个词，无法判断它是否立即执行、是否异步，也无法判断它在哪个线程执行。
+把一个函数交给另一段代码，由那段代码在约定的位置调用它，这个函数就被称为回调函数。普通方法和匿名函数都可以作为回调；调用时点与执行线程，由保存和调用它的代码决定。
 
 Bootstrap 会把匿名函数保存到 OnUpdate。初始化时先完成这个保存动作，函数体要等主循环调用 OnUpdate 时才执行。
 
@@ -182,12 +192,12 @@ public static void Initialize(EngineApplication app)
 | --- | --- |
 | ConfigureRuntime | 设置应用信息、数据与缓存路径，打开并检查资源包，连接日志和启动完成后的处理 |
 | ConfigureInput | 建立输入桥接和平台输入法桥接，并把 OnPrePollEvents 登记到输入轮询前的位置 |
-| ConfigureFrameRenderer | 按 Compute、World、Map、CameraCapture、PostFx、ImGui、ScreenCapture 的顺序安装渲染特性，并登记相关截图、关闭清理和着色器热重载等处理函数；内部绘制对象与资源在渲染模块继续解析 |
+| ConfigureFrameRenderer | 按 Compute、World、Map、CameraCapture、PostFx、ImGui、ScreenCapture 的顺序安装渲染特性，并登记截图、关闭清理和着色器热重载等处理函数 |
 | RegisterExecutionOrders / RegisterResources | 登记相机和 Root 组件的执行顺序，以及混音器、WorldText 等内置资源入口 |
 
 输入和渲染配置也会追加自己的回调。例如 ConfigureInput 先向 PrePollEvents 登记 OnPrePollEvents，随后 ConfigureFrameRenderer 内的着色器热重载配置再向同一事件追加 Tick。它们在初始化时先后登记，在主循环执行到 PrePollEvents 时才按登记顺序运行。
 
-到 Initialize 返回，普通启动已经拥有可进入的 Entry 场景和接好的更新、输入、绘制入口。游戏数据与界面的后续初始化，会由 Entry 组件的 Start 等调用继续安排；初始化返回与完整菜单准备完成之间，还隔着这些工作。
+Initialize 返回时，普通启动已经拥有 Entry 场景的基础对象，以及接好的更新、输入和绘制入口。游戏数据载入与菜单的进一步建立，由 Entry 组件的 Start 等调用继续安排。随后，主循环会反复调用这里保存的函数，让游戏进入可交互的运行状态。
 
 源码定位：Initialize 完整方法（`RimWorldWaylith.Bootstrap.cs:50`）、运行时配置（`RimWorldWaylith.Bootstrap.cs:408`）、输入配置（`RimWorldWaylith.Bootstrap.cs:227`）、渲染配置（`RimWorldWaylith.Bootstrap.cs:300`）、热重载回调登记（`RimWorldWaylith.Bootstrap.cs:378`）。
 
@@ -197,7 +207,7 @@ ConfigureFrameRenderer 将各渲染模块提供的对象加入 FrameRenderer。�
 app.FrameRenderer.AddFeature(Bootstrap._mapFeature);
 ```
 
-这里确认功能怎样被加入引擎。具体绘制数据的结构与实现保存在后续渲染模块。
+初始化完成后，FrameRenderer 已经保存了这些提供绘制功能的对象。每轮更新之后，主循环将通过它调用相应的采集方法。
 
 源码定位：地图特性登记（`RimWorldWaylith.Bootstrap.cs:309`）、IRenderFeature 接口（`Waylith.Rendering.IRenderFeature.cs:10`）。
 
@@ -243,7 +253,9 @@ FrameRenderer 在两条线程上各做一部分工作，所以总图出现两次
 | 渲染回调队列（RenderToMainThreadDispatcher） | 通过其 Enqueue 方法保存的函数 | 主线程调用 DrainRenderThreadCallbacksOnMainThread，内部调用 Invoke |
 | 帧数据队列（BlockingCollection<RenderFrame>） | 主线程采集得到的 RenderFrame | 渲染线程从 GetConsumingEnumerable 取出 |
 
-前两条队列保存函数，第三条保存绘制数据。它们的队列对象和处理位置彼此独立，具体入队、取出和等待规则，放到主线程队列泵与最后的帧数据交换部分解释。渲染回调队列的名字表示用途；当前尚未定位它实际 Enqueue 的代码位置，不能据此预设它每帧都有渲染结果返回。
+前两条队列保存函数，第三条保存绘制数据。它们各有自己的对象与处理位置。主线程部分将解释前两者怎样取出并调用函数，第七部分再把帧数据队列的两端连接起来。
+
+> 源码说明：RenderToMainThreadDispatcher 的保存与执行机制已经确认，当前语料中尚未定位实际调用其 Enqueue 的位置。本章介绍它提供的机制，实际使用点仍待核实。
 
 OnUpdate 保存的是每轮要调用的更新函数，不属于这三个队列；它也不会像队列记录一样，在调用一次后就被取出并移除。
 
@@ -425,7 +437,9 @@ previousSample 在循环前从零开始，所以第一轮 delta 等于当时的�
 
 采样后，主线程处理纹理等资源维护，调用 PrePollEvents 中保存的函数，再执行 InputState.BeginFrame 与 Glfw.PollEvents。Bootstrap 登记的输入前处理会在这里跟踪窗口位置、准备网格上传与本轮绘制提交状态、准备输入及平台输入法；着色器热重载 Tick 也在此获得调用机会。
 
-源码定位：时间采样与资源、输入处理（`Waylith.EngineApplication.cs:620`）、计时器字段（`Waylith.EngineApplication.cs:1625`）、Bootstrap 的轮询前处理（`RimWorldWaylith.Bootstrap.cs:251`）。
+以菜单中的鼠标按下为例，窗口事件经 GlfwInputBridge.OnMouseButton 交给 InputSystem.QueueMouseButton。后面的界面代码通过兼容输入 API 读取鼠标状态；在这一位置，主循环完成的是事件的收取与输入桥接。
+
+源码定位：时间采样与资源、输入处理（`Waylith.EngineApplication.cs:620`）、计时器字段（`Waylith.EngineApplication.cs:1625`）、Bootstrap 的轮询前处理（`RimWorldWaylith.Bootstrap.cs:251`）、鼠标输入桥接（`RimWorldWaylith.GlfwInputBridge.cs:41`）。
 
 #### 窗口状态决定本轮怎样继续
 
@@ -454,6 +468,11 @@ Surface 本身不保存本轮绘制出来的那幅图像。启动时，EngineApp
 | Rebuild | 沿用当前 Surface，替换交换链，并重新建立其依赖资源 |
 | RecreateSurfaceAndRebuild | 先清理交换链及依赖资源，为同一个本机窗口重新创建 Surface，再建立交换链及依赖资源；Surface 再次丢失时还有重试处理 |
 
+重建前，主线程先通过 WaitUntilIdle 等待渲染线程处理完已登记的数据包；重建内部再等待设备空闲，清理旧资源并建立适配当前条件的资源。前后两次等待分别约束渲染线程的 CPU 处理与设备工作。
+
+<details>
+<summary>源码补充：Rebuild 怎样替换交换链</summary>
+
 下面是普通 Rebuild 的主体，去掉重复的 base/this 限定。源码中的局部变量 vkSwapchainKHR，在下段暂记为 oldSwapchain，表示重建前保存的旧交换链：
 
 ```csharp
@@ -471,6 +490,8 @@ public sealed override void Rebuild()
 ```
 
 DestroySwapchainDependents 内部会先 Device.WaitIdle，再释放旧的帧资源、同步设施和主 render pass 等对象；重建依赖时，重新配置 render pass、视口与裁剪区域、帧资源和同步设施。在主循环调用这个方法之前，还会先 WaitUntilIdle，等渲染线程结束其待处理包的 CPU 处理。这两次等待分别约束渲染线程的工作和设备的工作。
+
+</details>
 
 除了尺寸不匹配，呈现模式变化，以及渲染线程在获取图像或提交呈现时取得 NeedsResize、SurfaceLost 等状态，也会推动相应重建请求。渲染线程登记的这些请求由主循环读取处理。若此时可呈现尺寸为零，就重新登记请求，本轮暂不采集画面，等条件允许后继续。
 
@@ -505,9 +526,18 @@ BeginFrame 依次完成三件事：
 | NativeAllocationRuntime.BeginFrame | 记录当前帧号，为当前线程开启本轮的临时内存作用域，让相应的 Temp 分配可以归属于这个作用域 |
 | WaylithJobRuntime.BeginFrame | 更新计算任务运行时所使用的帧号，并按周期清理已经完成、符合条件的旧任务状态 |
 
-这里的计算任务是引擎用于并行计算的 job，Pawn 的搬运、建造等游戏任务由另一套游戏逻辑管理。调用这三个方法，首先是让后续代码拥有一致的本轮时间与资源管理环境。
+这里的计算任务指引擎用于并行计算的 job。BeginFrame 为接下来的代码准备本轮时间、临时内存作用域和计算任务维护所用的帧号。
 
-EndFrame 先退出本轮的临时内存作用域，释放仍登记在该作用域里的 Temp 分配，并检查符合条件的超期 TempJob 分配以输出诊断。TempJob 的检查还考虑近期是否存在未完成计算任务；这一步并不自动释放所有 TempJob，也没有在这里等待全部计算任务完成。随后 Time.EndFrame 执行的就是 `FrameCount++`。
+EndFrame 先退出本轮的临时内存作用域，释放仍登记在该作用域里的 Temp 分配，再由 Time.EndFrame 执行 `FrameCount++`。这里的 Temp 指归入本轮临时内存作用域的分配。
+
+<details>
+<summary>补充：TempJob 诊断与计算任务维护</summary>
+
+NativeAllocationRuntime.EndFrame 还会检查符合条件的超期 TempJob 分配并输出诊断。检查会考虑近期是否存在未完成计算任务；这里不会自动释放所有 TempJob，也没有等待全部计算任务完成。
+
+WaylithJobRuntime.BeginFrame 更新计算任务运行时使用的帧号，并按周期清理已经完成、符合条件的旧任务状态。它管理的是引擎计算任务，Pawn 的搬运、建造等任务由游戏层的另一套逻辑组织。
+
+</details>
 
 例如进入时引擎帧号为 N，BeginFrame 和本轮 FrameTiming 使用 N，EndFrame 完成后计数变成 N+1。这个计数标记主线程帧维护的推进位置，GPU 仍可能在处理已经提交的工作。
 
@@ -531,11 +561,11 @@ RunLoop 中有两个处理函数队列的位置。渲染回调队列在一轮开
 this.RenderToMainThread.Invoke();
 ```
 
-Invoke 再循环取出 Action，逐个在调用它的主线程执行；单条回调异常时记录错误并继续。RenderToMainThreadDispatcher 提供的就是“先保存函数，再由主线程取出并调用”的功能。当前源码中能确认这个类怎样保存函数、FrameRenderer 怎样持有它，以及主循环怎样取出并执行函数，但尚未找到其他代码实际调用它的 Enqueue 的位置。因此，目前还不能指出哪一项具体游戏或渲染工作使用了这个队列，也不能将它解释为每帧固定返回一条渲染结果。
+Invoke 循环取出 Action，逐个在调用它的主线程执行；单条回调异常时记录错误并继续。函数加入队列后，由 RunLoop 开头的这个调用位置安排执行。
 
 #### BeginFrame 之后：主线程待执行函数队列
 
-Pump 是 MainThreadSynchronizationContext 的方法。本文按这个类的具体用途，将它称为“主线程待执行函数队列”：内部保存函数与参数，提供 Post、Send 和 Pump 来安排执行。这个类继承 .NET 的 SynchronizationContext，并通过 SetSynchronizationContext 设置为当前主线程使用的对象；源码中的这些类名和函数名保留原样。这个正文称呼只用于解释当前实现。
+Pump 属于 MainThreadSynchronizationContext。这个类内部保存函数与参数，提供 Post、Send 和 Pump 来安排执行，本文按用途称它为“主线程待执行函数队列”。它继承 .NET 的 SynchronizationContext，并通过 SetSynchronizationContext 设置为当前主线程使用的对象。
 
 下面保留源码中的参数和局部变量名，省略可空属性标注，并将 Pump 的异常日志代码折叠为注释：
 
@@ -569,13 +599,15 @@ public void Pump()
 
 同一个类还提供 Send：若调用者就是主线程，立即执行；若来自其他线程，先入队，再让调用线程等待，直到主线程执行该回调并设置完成标记，之后将异常按需要传回调用方。这里 Send 会等待函数执行完成，Post 则只将函数与参数加入队列。
 
-这两个队列使用各自的入队方法和处理函数。Pump 本身没有创建工作线程，也不负责 GLFW 窗口事件；调用渲染回调队列中的函数，也不表示某个 RenderFrame 已经显示。处理完这里的 Pump，主线程继续调用 OnUpdate。
+两个队列分别通过各自的入队与处理方法安排调用。Pump 在当前主线程中顺序执行函数；窗口事件则由前面的 Glfw.PollEvents 处理。Pump 返回后，主线程继续调用 OnUpdate。
 
 源码定位：处理渲染回调的函数（`Waylith.Rendering.FrameRenderer.cs:151`）、渲染回调队列（`Waylith.Rendering.RenderToMainThreadDispatcher.cs:14`）、建立主线程待执行函数队列（`Waylith.EngineApplication.cs:585`）、Post 与 Send（`Waylith.MainThreadSynchronizationContext.cs:33`）、Pump（`Waylith.MainThreadSynchronizationContext.cs:80`）。
 
 ### 5.4 OnUpdate：执行初始化时保存的更新函数
 
-主线程现在读取 OnUpdate，并在非空时调用它：
+接下来进入一次 OnUpdate 调用。它内部依次处理界面输入、兼容层更新和音频等工作；其中 Step 又把组件更新交给 UnityWorld。下面按六段阅读：更新函数 → Step 与时间、场景准备 → UnityWorld 的对象结构 → Update → LateUpdate → 返回外层。
+
+主线程读取 OnUpdate，并在非空时调用它：
 
 ```csharp
 Action onUpdate = this.OnUpdate;
@@ -585,7 +617,7 @@ if (onUpdate != null)
 }
 ```
 
-#### 已登记函数的执行顺序
+#### 5.4.1 已登记的更新函数
 
 现在展开第三节在 Initialize 中保存的那段函数。这里保留外层 +=，以便与登记位置对照；主循环实际执行的是已经保存的函数体。为方便阅读，保留原有条件和先后顺序，省略重复的 Bootstrap 类名，并简化空值判断。登记位置的 app2 是由 app 赋值的临时引用，下段合并使用 app：
 
@@ -635,15 +667,17 @@ app.OnUpdate += () =>
 | 7 | 设置 Saturation | 从当前游戏的颜色修正对象读取饱和度，写入合成 pass；没有该对象时使用 1 |
 | 8 | 音频更新 | 把当前 AudioListener 的位置和朝向交给音频后端，再调用后端的 Update |
 
-这些调用都在执行 OnUpdate 的主线程中进行。Step 是其中一次普通函数调用：执行完 Step 的内部步骤后，会返回这段匿名函数，继续启动状态检查、画面参数和音频更新，最后再返回 RunLoop。
+在菜单输入的例子中，DispatchInput 根据本轮鼠标状态发出 mouseDown、mouseUp 等界面事件，让界面代码判断如何响应。当前界面所需的绘制内容，在后面的采集阶段准备。
+
+这些调用都在执行 OnUpdate 的主线程中进行。Step 是其中一次普通函数调用：执行完内部步骤后，它返回这段匿名函数，继续启动状态检查、画面参数和音频更新，最后返回 RunLoop。
 
 RaiseBootCompleteOnce 会检查游戏数据是否已经载入、长事件是否已经结束。第一次调用时可能尚未满足条件，因而直接返回；满足条件后，启动完成事件只触发一次。
 
-这里的 EndOfFrame.Run 与前面介绍的 EngineApplication.EndFrame 是不同函数。前者处理截图与协程，后者处理引擎的临时内存与帧计数。EndOfFrame.Run 在这段代码里位于 Step 之前，不能仅凭名字将它挪到本轮更新的末尾。界面输入处理也先于 Step；界面的 layout、repaint 绘制数据构建还会在后续采集阶段执行。
+EndOfFrame.Run 处理截图与协程，调用位置在 Step 之前；EngineApplication.EndFrame 则负责主线程这一轮的临时内存与帧计数收尾。两者分别属于兼容层工作与引擎帧维护，阅读同名或近似名称时，要结合所属类型和实际调用位置。
 
 源码定位：登记的完整函数（`RimWorldWaylith.Bootstrap.cs:73`）、屏幕尺寸状态更新（`RimWorldWaylith.Bootstrap.cs:269`）、EndOfFrame.Run（`UnityStubs.EndOfFrame.cs:15`）、FrameStart.Run（`UnityStubs.FrameStart.cs:10`）、界面输入处理（`RimWorldWaylith.Imgui.ImguiDispatch.cs:28`）、启动完成检查（`RimWorldWaylith.Bootstrap.cs:169`）、音频监听状态更新（`UnityEngine.AudioListener.cs:65`）。
 
-#### UnityRuntime.Step 的六步
+#### 5.4.2 Step：准备时间与场景，进入组件更新
 
 调用到 `_unityRuntime.Step` 时，传入的两个时间值已经由前面的 BeginFrame 保存。`global::Waylith.Time` 明确指定引擎的静态 Time 类；传入的 DeltaTime、Elapsed 分别来自此前保存的 delta 和 elapsed，表示本轮采样间隔和累计经过时间。Step 中的 `this.Time` 则是 UnityRuntime 持有的 UnityTimeState 实例，负责保存兼容层的时间状态。
 
@@ -673,7 +707,7 @@ public void Step(float deltaTime, float elapsedTime)
 }
 ```
 
-##### 第一步：保存兼容层时间
+##### 保存兼容层时间
 
 UnityTimeState.BeginFrame 先把自己的 FrameCount 加一，再把 deltaTime 写入 DeltaTime 与 UnscaledDeltaTime，把 elapsedTime 写入 Time 与 UnscaledTime。此处直接保存传入值；引擎自己的 Waylith.Time.FrameCount 则在 EngineApplication.EndFrame 中增加，两者的增加时点不同。
 
@@ -681,19 +715,21 @@ UnityTimeState.BeginFrame 先把自己的 FrameCount 加一，再把 deltaTime �
 
 源码定位：兼容层时间保存（`Waylith.UnityCompat.UnityTimeState.cs:55`）、游戏读取 deltaTime（`UnityEngine.Time.cs:13`）。
 
-##### 第二步：处理待切换场景
+##### 处理待切换场景
 
 SceneManager.LoadScene 先保存场景名；ProcessPendingLoad 在这里检查它。没有请求就直接返回；有请求则卸载旧场景、设置新场景名、调用已经登记的构建函数，再调用场景切换事件中的函数并标记相应 AsyncOperation 完成。因此，新场景的基础对象可以在本次 World.Update 之前建立。初始 Entry 则已在 Initialize 中直接建立。
 
 源码定位：待切换场景的处理（`UnityEngine.SceneManagement.SceneManager.cs:83`）。
 
-##### 第三步：建立 UnityFrame
+##### 建立 UnityFrame
 
 它是保存 FrameIndex、DeltaTime、ElapsedTime 的结构体，供下面的 Update、LateUpdate 及其阶段事件中的函数读取。它与渲染数据包 RenderFrame 分别承担不同工作。组件自己的 Update 仍是无参方法；传给 World.Update 的 UnityFrame 不会改变组件 Update 的方法签名。
 
 源码定位：UnityFrame（`Waylith.UnityCompat.UnityFrame.cs:12`）。
 
-##### 进入第四步前：UnityWorld、组件与内部状态
+时间和场景准备好后，Step 将这个 UnityFrame 依次交给 World.Update 与 World.LateUpdate。先认识两者共同使用的对象与状态，再按调用顺序进入这两个方法。
+
+#### 5.4.3 UnityWorld：组件、实例与运行状态
 
 UnityRuntime 持有一个 UnityWorld，用它管理场景对象、组件及其运行状态。进入 Update 前，先看这里的对象是什么，以及 UnityWorld 怎样保存它们。
 
@@ -774,7 +810,7 @@ this.RefreshBehaviourActivity(unityBehaviourState);
 
 源码定位：RegisterComponent（`Waylith.UnityCompat.UnityWorld.cs:911`）。
 
-##### 第四步：UnityWorld.Update 怎样安排对象和组件的更新
+#### 5.4.4 UnityWorld.Update：准备状态并调用组件
 
 了解这些对象与列表之后，再看 Update。下面保留方法主体及全部命名，只调整缩进；FrameProfiler.Scope 用于记录这一段的性能统计：
 
@@ -818,9 +854,9 @@ public void Update(in UnityFrame frame)
 | 第一遍 | 对未销毁、尚未活动、仍启用且所属对象层级活动的组件，若尚未 Awake，就调用 Awake，并设置 HasAwoken |
 | 第二遍 | 再检查组件仍符合激活条件，调用 OnEnable，设置 IsActiveInHierarchy；若尚未 Start，就登记到待启动列表 |
 
-因此，在同一批、没有中途新增组件等特殊情况时，顺序是先处理这一批需要调用的 Awake，再处理这一批的 OnEnable。源码在两遍中都检查状态，因为前面的组件方法本身可以启停或销毁对象，第二遍面对的状态可能已经变化。
+同一批中的这些组件先按条件接到 Awake，再按条件接到 OnEnable。两遍都要检查状态，因为前面的组件方法可以启停或销毁对象，第二遍面对的状态可能已经变化。
 
-如果处理期间又有组件加入待激活列表，外层 while 会继续处理下一批。`_isFlushingPendingActivation` 防止重复进入同一套批处理；AddComponent 在激活处理期间还有针对新组件的直接处理入口。因此，“整批 Awake → 整批 OnEnable”描述的是当前批次的两遍遍历，不能推广成所有运行期创建行为的唯一顺序。
+处理期间若又有组件加入待激活列表，外层 while 会继续处理下一批。`_isFlushingPendingActivation` 防止重复进入同一套批处理；AddComponent 在激活处理期间还可以直接处理新组件的激活。因此，这里的两遍顺序适用于当前批次，中途创建的新组件还要结合其添加入口阅读。
 
 Awake、OnEnable 也可能在 Step 之前就已经执行。添加组件、改变对象活动状态、修改 Behaviour.enabled 等入口，会在条件允许时立即调用激活处理；Update 开头的 FlushPendingActivation 继续处理届时仍待处理的部分。
 
@@ -891,9 +927,19 @@ InvokeMessage 还处理两件事：调用结果若为 IEnumerator，就交给 Me
 
 源码定位：方法缓存与查找（`Waylith.UnityCompat.UnityWorld.cs:1468`）、编译调用委托（`Waylith.UnityCompat.UnityWorld.cs:1499`）、实际调用与异常处理（`Waylith.UnityCompat.UnityWorld.cs:1265`）、连接协程启动函数（`Waylith.UnityCompat.UnityRuntime.cs:67`）。
 
+**组件更新怎样进入游戏流程。** Root_Entry、Root_Play 等游戏入口组件，也通过上面的登记与状态检查接到 Update。游玩场景的一条调用链是：
+
+```text
+UnityWorld 调用组件的 Update
+  → Root_Play.Update
+    → Current.Game.UpdatePlay
+```
+
+GameRoot、Root 的职责，以及游戏数据、长事件、界面和声音怎样继续推进，见 [游戏流程前置说明](../../07-waylith-root-play.md)。这里先确认兼容层将控制权交给了游戏入口；这些方法返回后，UnityWorld 还要继续本次更新的剩余步骤。Pawn 等游戏实体由游戏层自己的调度继续组织。
+
 **6. 调用 PostUpdate 中登记的函数。** 当前名单的组件 Update 调用结束后，才执行 PostUpdate。到此，UnityWorld.Update 返回 Step；随后 Step 调用 UnityWorld.LateUpdate。
 
-##### 第五步：UnityWorld.LateUpdate 怎样接着执行
+#### 5.4.5 UnityWorld.LateUpdate：后续更新与销毁处理
 
 LateUpdate 同样保留方法主体及全部命名，只调整缩进：
 
@@ -935,7 +981,7 @@ public void LateUpdate(in UnityFrame frame)
 | Updating 中添加并激活了 C | 此时 Start 处理位置已过，但 Update 名单尚未复制；C 可能本次接到 Update，而 Start 留待后续处理 |
 | A.Update 对已登记的 B 调用普通 Destroy | 这一步先登记销毁请求；若 B 仍活动且没有被其他代码销毁，它仍可能接到本次 Update、LateUpdate，随后在 LateUpdate 末尾处理销毁 |
 
-第三行来自一个具体条件：逐个调用 Update、LateUpdate 的筛选只检查活动与未销毁，没有额外检查 HasStarted。这里保留当前兼容层实现的实际判断；这些推演尚未通过运行测试验证。
+第三行来自当前兼容层的实际判断：逐个调用 Update、LateUpdate 时，筛选条件检查活动与未销毁，没有额外检查 HasStarted。表中的结果按这些条件作静态推演。
 
 最后，PostLateUpdate 中的函数继续运行。已定位的使用方式包括：
 
@@ -949,27 +995,38 @@ public void LateUpdate(in UnityFrame frame)
 
 源码定位：LateUpdate 完整顺序（`Waylith.UnityCompat.UnityWorld.cs:730`）、协程的阶段登记与处理（`UnityEngine.CoroutineScheduler.cs:49`）、网格渲染组件驱动（`UnityStubs.Internal.MeshRendererDriver.cs:14`）、呈现前函数的登记（`UnityEngine.Application.cs:56`）。
 
-##### 第六步：调用屏幕相机相关函数
+#### 5.4.6 返回 Step，再返回 OnUpdate
 
-这个方法查找活动相机，只对启用且 targetTexture 为空的相机，调用 Camera.onPreCull 中登记的函数，以及相机对象上组件的 OnPreCull 方法。这一段本身做的是函数调用；相机可见性计算和具体绘制还要看后续实现，不能只凭 PreCull 名字将它们全归入这里。
+两个 World 方法依次返回后，Step 最后调用 Camera.DispatchPreCullForScreenCameras。它查找活动相机，对启用且 targetTexture 为空的相机，调用 Camera.onPreCull 中登记的函数，以及相机对象上组件的 OnPreCull 方法。这里将相机相关的准备工作交给已登记的函数，具体处理由相应实现完成。
 
 源码定位：Step（`Waylith.UnityCompat.UnityRuntime.cs:106`）、屏幕相机调用（`UnityEngine.Camera.cs:631`）。
 
-#### 兼容层怎样接到游戏入口
-
-初始化建立的 Root_Entry、Root_Play 等组件，也通过上面的对象登记、状态检查与方法调用接到 Update。调用进入这些组件的方法体之后，才继续展开游戏流程；它们做完自己的工作，控制权仍会返回 UnityWorld、Step 和 OnUpdate。
-
-GameRoot、Root 的职责，以及 Root.Start、Root.Update 怎样安排游戏数据、长事件、界面和声音，归入后续游戏流程研究，已有说明保存在 [游戏流程前置笔记](../../07-waylith-root-play.md)。这里保留游玩场景的接续位置：
+相机相关调用完成，Step 返回 Bootstrap 在初始化时登记的更新函数。控制权沿下面的顺序回到主循环：
 
 ```text
-UnityWorld 调用组件的 Update
-  → Root_Play.Update
-    → Current.Game.UpdatePlay
+UnityWorld.Update → UnityWorld.LateUpdate
+  → Step 调用屏幕相机相关函数
+  → 返回 OnUpdate 中已登记的函数体
+  → 继续启动状态检查、画面参数与音频更新
+  → 返回 RunLoop
 ```
 
-Pawn 等游戏实体由游戏层自己的调度继续更新。UnityWorld 遍历场景 Behaviour，只说明兼容层怎样将控制权交给游戏入口；地图和实体怎样推进、游戏怎样暂停与加速，留到游戏主流程模块展开。
+此时完成了本轮更新。RunLoop 继续检查退出请求与绘制条件；条件允许时，接着采集当前状态所需的绘制数据。
 
 ### 5.5 采集本轮绘制数据
+
+从更新时间到记录绘制指令，会遇到几个容易混淆的对象。它们在不同位置建立或取得，承担的工作如下：
+
+| 对象 | 创建或取得的位置 | 保存什么、交给谁使用 |
+| --- | --- | --- |
+| UnityFrame | Step 内建立 | 兼容层帧号与时间，供主线程中的 UnityWorld 更新及阶段函数使用 |
+| FrameTiming | RunLoop 在采集前建立 | 引擎帧号与本轮时间，供渲染特性的准备和采集使用 |
+| RenderFrame | FrameRenderer.CaptureFrame 建立 | 汇集各渲染特性提供的绘制数据与时间信息，经队列交给渲染线程 |
+| CommandBuffer | 渲染线程取得本次绘制资源时获得，记录前重置 | 保存录制的 Vulkan 指令，随后用于图形提交 |
+
+UnityFrame 和 FrameTiming 分别使用兼容层与引擎的计数器，为更新和采集提供时间。跨过主线程与渲染线程的是 RenderFrame；渲染线程再据此向指令缓冲写入操作。
+
+源码定位：UnityFrame（`Waylith.UnityCompat.UnityFrame.cs:12`）、FrameTiming（`Waylith.Rendering.FrameTiming.cs:9`）、RenderFrame（`Waylith.Rendering.RenderFrame.cs:14`）、取得指令缓冲并记录（`Waylith.Rendering.RenderThread.cs:225`）。
 
 OnUpdate 返回 RunLoop 后，若没有退出请求且本轮允许绘制，主线程执行下面三次调用：
 
@@ -982,13 +1039,17 @@ this._renderThread.Enqueue(renderFrame);
 
 BeginMainThreadFrame 先让相应渲染模块做本轮准备。CaptureFrame 再逐个调用已安装渲染特性的采集方法，将它们提供的本轮绘制数据组成 RenderFrame。这里的“渲染特性”就是地图、世界、界面等模块按 IRenderFeature 接口提供的对象；FrameRenderer 通过共同接口调用它们。
 
-在 Waylith 篇中，将这些模块看成绘制数据的提供者，就能继续理解引擎的工作顺序。各模块返回的数据长什么样、地图状态怎样变成这些数据、UI 怎样组织绘制内容，留到地图、空间和 UI 解析完成后的渲染模块研究。
+在菜单输入的例子中，先前的 DispatchInput 已经让界面代码取得处理输入的机会。采集到界面绘制特性时，ImGuiRenderFeature.CaptureFrame 会调用初始化中保存的界面构建函数，继续进入 ImguiDispatch.Draw。Draw 依次执行 layout 与 repaint，准备当前界面所需的绘制内容，再由特性将结果交回 FrameRenderer。
+
+输入处理与绘制内容的准备，因而位于主线程的不同位置。按钮是否响应、怎样改变菜单由界面代码决定；引擎负责在这些位置调用它，并收集它提供的绘制数据。
+
+源码定位：登记界面构建函数（`RimWorldWaylith.Bootstrap.cs:343`）、界面特性的采集（`RimWorldWaylith.Imgui.ImGuiRenderFeature.cs:44`）、layout 与 repaint（`RimWorldWaylith.Imgui.ImguiDispatch.cs:89`）。
 
 RenderFrame 是交给渲染线程的数据包。主线程在此收集本轮绘制所需的信息，具体 Vulkan 指令的记录在渲染线程继续。
 
-这里暂时读到 Enqueue 将数据包加入帧数据队列；队列满时怎样等待，以及渲染线程怎样取得同一个包，放到第七节把两端连起来解释。
+Enqueue 将数据包加入帧数据队列。第七节将把入队、取包与等待放在一起，说明两个线程怎样协调推进。
 
-入队返回后，主线程调用 FrameEnqueued 中保存的函数，执行 EndFrame，然后进入限速。EndFrame 的临时内存和帧号处理已经在前面说明；它结束这轮主线程维护时，渲染线程和 GPU 仍可能处理此前的工作。
+入队返回后，主线程调用 FrameEnqueued 中保存的函数，执行 EndFrame，再进入限速。它完成本轮的临时内存维护和帧计数推进，随后可以开始下一轮主线程工作。
 
 ### 5.6 限速：补足本轮尚未用完的时间
 
@@ -1065,11 +1126,11 @@ frameResult = this._renderContext.TrySubmitFrame();
 
 指令缓冲可以理解为一份准备交给 GPU 的操作记录。Begin 开始记录，FrameRenderer.RecordFrame 根据先前收集的数据调用各模块的绘制代码，将绘制等操作写入这个指令缓冲，End 结束记录。随后 TrySubmitFrame 进入提交过程。
 
-这就解释了两个线程之间的分工：主线程更新游戏并收集本轮绘制数据，渲染线程读取这些数据，记录并提交 Vulkan 指令。RecordFrame 内部各 pass 怎样读取数据、选择纹理或图形管线、组织具体绘制，属于后续渲染模块的内容。
+两条线程在这里完成交接：主线程更新状态并收集绘制数据，渲染线程据此调用各模块的绘制方法，将操作记录到指令缓冲，再进入 Vulkan 提交。
 
 源码定位：获取资源与记录、提交的顺序（`Waylith.Rendering.RenderThread.cs:197`）、RecordFrame（`Waylith.Rendering.FrameRenderer.cs:316`）。
 
-原实现还会在每个数据包的处理结束位置调用 FrameEnded 相关函数，并更新待处理数量；数据包是否需要继续保留，取决于本次提交情况。具体字段和资源保留规则属于后续渲染模块，这里先区分“渲染线程处理完这个包”与“GPU 已经执行完相应指令”。
+每个数据包处理结束时，原实现还会调用 FrameEnded 相关函数，并更新待处理数量。进入提交路径的数据包可能继续保留，供后续复用相应提交位置时回收。CPU 处理结束与 GPU 执行完成的关系，将在第七节的时序图中对齐。
 
 渲染线程发生异常时，会保存异常并停止接收后续包；主线程在 ThrowIfFaulted 检查位置重新抛出。正常停止时，Stop 先调用 CompleteAdding 停止入队，Join 等待线程退出，再等待设备空闲并释放保留资源。
 
@@ -1091,7 +1152,7 @@ Enqueue 由主线程调用，将 RenderFrame 引用加入有界 BlockingCollecti
 
 第一次进入窗口循环前，渲染线程已经启动，而主线程尚未生成首包。渲染线程若先运行到取包位置，就会等待空队列；新建队列至少有一个空位，首包入队不会因为队列已满而等待。源码没有要求主线程先等一条“渲染线程已经准备好”的回复。
 
-这条队列传递的是 RenderFrame 引用。它没有在入队时再执行一次 OnUpdate，也没有在入队时生成最终画面。主线程将数据包加入队列，渲染线程随后取得该包并继续处理；具体数据结构留在独立渲染模块。
+这条队列传递的是 RenderFrame 引用。主线程加入已经采集的数据包，渲染线程取得同一个包，并继续记录、提交。数据准备与指令记录由此可以在不同线程上推进。
 
 ### 7.2 从 TrySubmitFrame 到 Vulkan 图形队列和呈现
 
@@ -1103,7 +1164,7 @@ this.GraphicsQueue.Submit(
 vkResult = present();
 ```
 
-第一句通过 Vulkan 图形队列提交已经记录的指令缓冲。这里的同步参数规定相关图形工作之间的先后条件，以及 CPU 后续怎样确认提交完成；各参数的具体组织方式留到渲染模块。
+第一句通过 Vulkan 图形队列提交已经记录的指令缓冲。同步参数规定相关图形工作之间的先后条件，并提供 CPU 后续等待提交完成所需的标记。
 
 第二句调用传入的呈现函数。窗口路径传入的是 PresentFrame，它指定本次要呈现的交换链图像，最终调用：
 
@@ -1124,20 +1185,49 @@ vkResult = this.queue.PresentKHR(vkPresentInfoKHR);
 | 提交 fence 触发 | 对应提交的指令缓冲已经完成执行 |
 | 图像显示 | 平台呈现路径已经将图像送到实际显示阶段 |
 
-所以主线程入队后可以完成收尾、限速并继续下一轮，而渲染线程和 GPU 仍在推进此前的工作。再次使用相关资源时，需要按完成条件等待；停止运行时，也要等待渲染线程与设备结束相应工作，再回收资源。这些等待说明引擎怎样协调各部分的进度，具体资源结构与复用规则放到渲染模块继续解释。
+所以主线程入队后可以完成收尾、限速并继续下一轮，而渲染线程和 GPU 仍在推进此前的工作。再次使用相关资源时，需要按完成条件等待；停止运行时，也要等待渲染线程与设备结束相应工作，再回收资源。这些等待约束各部分的推进位置，让相应资源在满足完成条件之后继续使用。
 
 源码定位：窗口提交参数与调用（`Waylith.Graphics.WindowRenderContext.cs:448`）、图形队列提交（`Waylith.Graphics.GraphicsDevice.cs:533`）、PresentFrame（`Waylith.Graphics.WindowRenderContext.cs:415`）、停止渲染线程（`Waylith.Rendering.RenderThread.cs:64`）。
 
-## 后续阅读与资料
+### 7.4 用时序图对照交接、等待与继续
 
-本文的主线到此连通：创建应用 → 初始化 → 主线程更新与采集 → RenderFrame 入队 → 渲染线程记录 → Vulkan 提交与呈现。实际运行时，两条线程和 GPU 可以并行推进；文章按调用与数据交接的先后顺序讲述。
+帧交接时序图把主线程、帧队列、渲染线程、GPU 和呈现路径放在一起。A 表示一个 RenderFrame 数据包，图中的四段分别说明：
 
-游戏流程仍停在 [Game.UpdatePlay 的书签](../../07-waylith-root-play.md)。地图、空间和 UI 的解析完成后，再进入 [独立渲染模块](../../15-rendering-module-notes.md)，研究具体绘制数据结构、各 pass 和资源管理。此前的详细笔记与图示保留在该模块资料中。
+1. 队列满时主线程等待空位，队列空时渲染线程等待数据；取包或入队怎样使另一端继续。
+2. 渲染线程取得数据包后，怎样等待旧提交完成并获取可绘制的图像。
+3. 主线程入队返回、渲染线程提交、GPU 执行与呈现怎样按各自的依赖交错推进。
+4. 重建等维护路径怎样等待渲染线程完成当前待处理工作。
+
+四段应分别阅读，不表示每帧都依次经历全部等待，图中间距也不表示实际耗时。实线表示调用、请求或提交；虚线表示返回、等待条件解除或同步信号。队列腾出空位、渲染线程处理结束、GPU 执行完成和画面显示，各自对应前面说明的不同进度。
+
+图中的几个名称，需要与正文和源码对齐：
+
+| 图中名称 | 在本图中的含义 |
+| --- | --- |
+| 提交槽位 | 按索引轮流复用的一组指令缓冲与同步对象的位置；源码中的 SubmissionFrameIndex 对应 SyncObjectsIndex，交换链图像编号则由 FrameIndex 管理 |
+| ImageReady | 图中对 ImageReadySemaphore 的简写；获取图像时使用它，图形提交将它列为等待条件，再继续相应的绘制操作 |
+| rendering-finished semaphore | 绘制完成后供呈现路径等待的信号；窗口实现通过 GetImageRenderingFinishedSemaphore 取得它 |
+| fence | 对应图形提交完成后可供 CPU 等待的标记，后续复用相应提交位置时会等待它 |
+| pending | 图中对 `_pendingFrames` 的简写，记录已登记待处理的数据包数量；入队前增加、收尾时减少，因此可能包括正在等待入队的数据包 |
+| _idle | 等待标记；`_pendingFrames` 归零时设置，使 WaitUntilIdle 中的相应等待结束 |
+
+源码定位：提交索引（`Waylith.Graphics.RenderContext.cs:163`）、槽位轮转与 fence 等待（`Waylith.Graphics.RenderContext.cs:245`）、图像获取与 ImageReadySemaphore（`Waylith.Graphics.WindowRenderContext.cs:503`）、呈现等待信号（`Waylith.Graphics.WindowRenderContext.cs:415`）、待处理计数与等待标记（`Waylith.Rendering.RenderThread.cs:286`）。
+
+![Waylith 帧交接：队列交换、等待、唤醒与返回](../../figures/waylith-frame-timeline.png)
+
+放大查看：[SVG 矢量图](../../figures/waylith-frame-timeline.svg)；可编辑图源：[Mermaid](../../figures/waylith-frame-timeline.mmd)。
+
+回到菜单中的鼠标操作：本轮界面代码处理输入，界面绘制特性准备当前可见内容，这些数据随 RenderFrame 一起交给渲染线程。主线程入队返回后可以继续接收后续输入与更新；GPU 和呈现路径则按各自的条件推进已经提交的工作。输入处理、绘制数据准备和画面显示，正是这样由引擎衔接起来的。
+
+## 资料与后续章节
+
+沿组件更新继续，可以阅读 [GameRoot、Root 与游戏流程](../../07-waylith-root-play.md)。地图、空间和 UI 章节之后，再进入 [渲染模块](../../15-rendering-module-notes.md)，解释具体绘制数据、各 pass 和资源管理。下列图源与源码阅读笔记，可用于对照本文中的调用关系。
 
 | 图 | 矢量图 | 可编辑图源 |
 | --- | --- | --- |
 | Waylith 总览 | [SVG](../../figures/waylith-overview.svg) | [DOT](../../figures/waylith-overview.dot) |
 | 主线程窗口循环 | [SVG](../../figures/waylith-runloop-flow.svg) | [DOT](../../figures/waylith-runloop-flow.dot) |
 | UnityWorld 的 Update / LateUpdate | [SVG](../../figures/waylith-unityworld-update-flow.svg) | [DOT](../../figures/waylith-unityworld-update-flow.dot) |
+| 渲染队列交换与等待时序 | [SVG](../../figures/waylith-frame-timeline.svg) | [Mermaid](../../figures/waylith-frame-timeline.mmd) |
 
 补充笔记：[应用创建](../../03-waylith-construction.md)、[初始化](../../04-waylith-bootstrap.md)、[RunLoop 与 Headless](../../05-waylith-runloop.md)、[组件方法的调用](../../06-waylith-runtime-step.md)。
