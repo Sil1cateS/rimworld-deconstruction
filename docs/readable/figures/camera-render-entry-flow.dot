@@ -1,0 +1,23 @@
+digraph CameraRenderEntry {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.6", ranksep="0.48", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="显式 Camera.Render：阶段函数与纹理后端的连接"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.14", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  entry [label="读取目标纹理 _targetTexture\n和 CameraTextureRenderer.Current", fillcolor="#f0eafa", color="#b5a1d1"];
+  hasTarget [shape=diamond, style=filled, label="目标纹理和后端\n是否都存在？", fillcolor="#fff3d8", color="#cfb579", margin="0.15,0.1"];
+  stagesOnly [label="依次尝试 PreCull、PreRender、PostRender\n每阶段先调用全局委托，再调用同对象脚本\n随后返回", fillcolor="#f2f5f8", color="#aab8c8"];
+  collect [label="复制符合层掩码的待处理绘制命令\n保存并临时替换 Graphics.ImmediateCapture"];
+  stages [label="依次尝试 PreCull、PreRender、PostRender\n每阶段先调用全局委托，再调用同对象脚本"];
+  restore [label="finally 恢复 Graphics.ImmediateCapture"];
+  view [label="取得 CameraView、视口与可选清除颜色"];
+  render [label="调用 ICameraTextureRenderer.Render\n交给目标纹理绘制后端处理", fillcolor="#e8f4ed", color="#a5cbb8"];
+  entry -> hasTarget;
+  hasTarget -> stagesOnly [label="否"];
+  hasTarget -> collect [label="是"];
+  collect -> stages;
+  stages -> restore;
+  restore -> view [label="正常执行主线"];
+  view -> render;
+  {rank=same; stagesOnly; collect;}
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="本图描述显式 Render 的正常执行主线；阶段函数异常可能中断后续处理。\n此处 PostRender 阶段发生在最后的后端 Render 调用之前。"];
+  render -> legend [style=invis];
+}

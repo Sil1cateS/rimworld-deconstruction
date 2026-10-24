@@ -1,0 +1,25 @@
+digraph BehaviourActivation {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.6", ranksep="0.48", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="Behaviour：从开关和层级状态，到方法调用"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.14", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  trigger [label="组件登记、enabled 改变\n或所属对象及父对象的活动关系变化", fillcolor="#f0eafa", color="#b5a1d1"];
+  refresh [label="RefreshBehaviourActivity"];
+  eligible [shape=diamond, style=filled, label="已启用、对象层级活动\n并且未销毁？", fillcolor="#fff3d8", color="#cfb579", margin="0.15,0.1"];
+  disable [label="若原来活动：\n先清除活动标记，再尝试 OnDisable\n原来不活动则直接返回", fillcolor="#f2f5f8", color="#aab8c8"];
+  pending [label="加入 _pendingActivation\n等待激活处理"];
+  activation [label="FlushPendingActivation 按当前批次处理\n先一轮尝试首次 Awake，再一轮尝试 OnEnable\n符合条件时写入 IsActiveInHierarchy", fillcolor="#e8f4ed", color="#a5cbb8"];
+  pendingStart [label="尚未经过 Start 阶段的记录\n安排进入 _pendingStart"];
+  start [label="World.Update 等相应处理位置\n符合条件时尝试 Start，写入 HasStarted"];
+  dispatch [label="Update / LateUpdate 的活动列表遍历\n检查标记，尝试调用实际存在的方法"];
+  trigger -> refresh;
+  refresh -> eligible;
+  eligible -> disable [label="否"];
+  eligible -> pending [label="是"];
+  pending -> activation [label="在相应处理位置"];
+  activation -> pendingStart;
+  pendingStart -> start;
+  start -> dispatch [style=dotted, label="连接后续帧阶段"];
+  {rank=same; disable; pending;}
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="这是主要管理连接的概览；激活阶段会再次检查状态。\n方法可能不存在，批次可能嵌套；帧内建立组件的顺序需结合调用时点判断。"];
+  dispatch -> legend [style=invis];
+}

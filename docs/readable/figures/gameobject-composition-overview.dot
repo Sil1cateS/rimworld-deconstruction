@@ -1,0 +1,18 @@
+digraph GameObjectComposition {
+  graph [rankdir=TB, newrank=true, bgcolor="white", pad="0.28", nodesep="0.45", ranksep="0.65", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="GameObject：实例怎样组成，关系由谁记录"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.14", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  go [label="GameObject 实例\n提供对象与组件操作接口", fillcolor="#f0eafa", color="#b5a1d1"];
+  state [label="UnityWorld 中的管理记录\nUnityGameObjectState\n名称、场景、活动状态\nComponents 与 Transform 等关系", fillcolor="#f2f5f8", color="#aab8c8"];
+  transform [label="Transform 实例\n普通构造过程建立\n空间变换与父子关系", fillcolor="#e8f4ed", color="#a5cbb8"];
+  a [label="组件实例 A\n保存自己的数据与功能"];
+  b [label="组件实例 B\n保存自己的数据与功能"];
+  {rank=same; go; state;}
+  {rank=same; transform; a; b;}
+  go -> state [style=dashed, color="#8190a3", fontcolor="#65778d", label="对应管理记录", constraint=false];
+  go -> transform [label="附加"];
+  go -> a [label="附加"];
+  go -> b [label="附加"];
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="A、B 是讲解用占位描述，不是源码类型名。\n实线表示附加关系，虚线表示记录对应；箭头不表示执行顺序。"];
+  a -> legend [style=invis];
+}

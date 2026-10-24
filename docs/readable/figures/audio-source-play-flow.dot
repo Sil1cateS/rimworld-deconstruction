@@ -1,0 +1,33 @@
+digraph AudioSourcePlay {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.6", ranksep="0.42", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="AudioSource.Play：建立主播放的顺序"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.12", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  entry [label="Play / PlayDelayed / PlayScheduled\n进入私有 Play(double dspStart)", fillcolor="#f0eafa", color="#b5a1d1"];
+  hasClip [shape=diamond, style=filled, label="_clip 存在？", fillcolor="#fff3d8", color="#cfb579"];
+  noClip [label="直接返回\n尚未停止旧播放", fillcolor="#f2f5f8"];
+  stop [label="暂存待用起点 → Stop\n停止旧主播放和额外播放 → 恢复起点"];
+  create [label="clip.AcquireSound(this)\n后端 Play：先暂停、请求自动释放"];
+  hasVoice [shape=diamond, style=filled, label="取得 _voice？", fillcolor="#fff3d8", color="#cfb579"];
+  failed [label="清空 _playingSound\n返回", fillcolor="#f2f5f8"];
+  params [label="应用音量、静音、音高、优先级、循环"];
+  spatial [shape=diamond, style=filled, label="_spatialBlend > 0？", fillcolor="#fff3d8", color="#cfb579"];
+  position [label="应用空间模式\n读取当前位置等状态"];
+  pan [label="关闭空间模式\n应用声像或混合矩阵"];
+  finish [label="按需要设置音频起点\n连接滤镜；按需要登记计划开始时间"];
+  play [label="_voice.SetPaused(false)\n后端继续处理播放", fillcolor="#e8f4ed", color="#a5cbb8"];
+  entry -> hasClip;
+  hasClip -> noClip [label="否"];
+  hasClip -> stop [label="是"];
+  stop -> create -> hasVoice;
+  hasVoice -> failed [label="否"];
+  hasVoice -> params [label="是"];
+  params -> spatial;
+  spatial -> position [label="是"];
+  spatial -> pan [label="否"];
+  position -> finish;
+  pan -> finish;
+  finish -> play;
+  {rank=same; noClip; stop;}
+  {rank=same; failed; params;}
+  {rank=same; position; pan;}
+}

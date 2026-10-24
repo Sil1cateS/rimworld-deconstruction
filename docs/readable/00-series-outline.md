@@ -144,3 +144,7 @@ DLC 各自作为模块组展开，既说明独有实现，也说明它怎样接�
 Waylith 的第一轮源码梳理见 [01-waylith-discussion.md](01-waylith-discussion.md)，作为接下来讨论文章边界和技术深度的材料。
 
 Waylith 章节提供 [《从启动到每一帧：Waylith 怎样驱动 RimWorld》发布版 v1.0](chapters/01-waylith/release.md) 与 [完整解析版 v1.0](chapters/01-waylith/article.md)，均采用上述线性主线。发布版用简图与案例解释运行逻辑；完整解析版保留源码节选、详细图示和定位。此前共同修订的 [模块汇总稿 v0.2](14-waylith-summary-draft.md) 保留为参考底稿。图示保留可编辑图源与 SVG；游戏内部调度继续停在 Game.UpdatePlay 接点，待对应模块展开。
+
+下一部分先研究 [对象与组件模式](16-gameobject-component-model.md)：先用 [UnityWorld 概览](19-unityworld-overview.md) 说明管理记录、对象引用与每帧调用的关系，再从 [UnityEngine.Object](17-unityengine-object.md) 出发，按树状结构说明每一级相对于父节点增加的数据、接口和行为，继续进入 [GameObject](18-gameobject.md)、[Component](20-component.md) 及其相关子分支。当前已有 [Transform](21-transform.md) 的空间与父子关系、[MeshFilter 与 Renderer 分支](22-mesh-renderer-components.md) 的资源引用和绘制调用、[Behaviour](23-behaviour.md) 的启停管理、[Camera](24-camera.md) 的观察参数与帧内连接、[AudioBehaviour](25-audiobehaviour.md)、[AudioSource](26-audiosource.md)、[AudioListener](27-audiolistener.md) 的播放与监听连接，以及 [MonoBehaviour](28-monobehaviour.md) 的脚本调用与协程管理。这些讨论结合实例组成与相机、声音、GameRoot 等案例，解释不同类型怎样协作和获得调用。当前材料是讨论稿，按逐类阅读的进度补充。
+
+对象与组件章节现提供 [《从每一帧到对象与组件：UnityWorld 与 UnityEngine.Object》发布版 v1.0](chapters/02-UnityWorld&UnityObject/release.md) 与 [完整解析版 v1.0](chapters/02-UnityWorld&UnityObject/article.md)，范围与资料说明见 [第二章目录](chapters/02-UnityWorld&UnityObject/README.md)。正文先从 Step 进入 UnityWorld，再沿对象与组件类型展开；相机、音频、网格使用协作样例，协程只保留必要功能。发布版沿运行逻辑展开并保留必要代码和表格，完整解析版保留详细实现与定位。此前的整合草稿及逐类笔记继续作为参考材料。

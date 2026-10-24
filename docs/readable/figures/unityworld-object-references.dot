@@ -1,0 +1,24 @@
+digraph UnityWorldReferences {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.55", ranksep="0.6", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="UnityWorld：创建方法返回后仍然存在的引用"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.14", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  runtime [label="当前 UnityRuntime 实例", fillcolor="#f0eafa", color="#b5a1d1"];
+  world [label="UnityWorld 实例"];
+  index [label="_objects 查询表\n键：实际对象；值：管理记录", fillcolor="#f2f5f8", color="#aab8c8"];
+  goState [label="GameObject 的管理记录\nUnityGameObjectState", fillcolor="#f2f5f8", color="#aab8c8"];
+  cameraState [label="Camera 的管理记录\nUnityBehaviourState", fillcolor="#f2f5f8", color="#aab8c8"];
+  go [label="实际 GameObject\nname 为 Camera", fillcolor="#e8f4ed", color="#a5cbb8"];
+  camera [label="实际 Camera 组件", fillcolor="#e8f4ed", color="#a5cbb8"];
+  runtime -> world [label="World"];
+  world -> index [label="_objects"];
+  index -> goState [label="值"];
+  index -> cameraState [label="值"];
+  goState -> go [label="Instance"];
+  cameraState -> camera [label="Instance"];
+  goState -> cameraState [label="Components 包含", constraint=false];
+  { rank=same; goState; cameraState; }
+  { rank=same; go; camera; }
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="箭头表示引用；图中省略了默认 Transform、其他组件及部分引用路径。\n局部变量结束使用后，这些管理记录仍可持有实际对象。"];
+  go -> legend [style=invis];
+  camera -> legend [style=invis];
+}

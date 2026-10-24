@@ -1,0 +1,20 @@
+digraph ReleaseCameraComposition {
+  graph [rankdir=TB, bgcolor="white", pad="0.25", nodesep="0.35", ranksep="1.0", splines=polyline, fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="相机对象：不同组件围绕同一个 Transform 协作"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", margin="0.18,0.14", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=13, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  go [label="GameObject\nname 为 Camera", fillcolor="#f0eafa", color="#b5a1d1"];
+  transform [label="Transform\n位置、旋转、缩放", fillcolor="#e8f4ed", color="#a5cbb8"];
+  camera [label="Camera\n观察参数"];
+  listener [label="AudioListener\n声音监听"];
+  driver [label="CameraDriver\n控制脚本", fillcolor="#fff3d8", color="#cfb579"];
+  go -> transform [label="默认组件"];
+  go -> camera [label="附加"];
+  go -> listener [label="附加"];
+  go -> driver [label="附加"];
+  {rank=same; transform; camera; listener; driver;}
+  transform -> listener -> camera -> driver [style=invis, weight=10];
+  driver:s -> camera:s [label="GetComponent\n查询并控制", style=dashed, color="#b88932", fontcolor="#936b23", constraint=false];
+  legend [shape=plain, style="", fontsize=13, fontcolor="#526d85", label="四个组件是独立实例，各自的 transform 都能取得同一个默认 Transform。\n实线表示附加关系，虚线表示脚本查询与使用；图中省略 World 的管理记录。"];
+  camera -> legend [style=invis];
+  listener -> legend [style=invis];
+}

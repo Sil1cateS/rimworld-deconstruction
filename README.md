@@ -5,9 +5,11 @@ RimWorld 1.7（`1.7.4982 rev1280`，逻辑程序集 `Assembly-CSharp` `1.7.9787.
 本仓库只包含**分析文档与工具脚本**；游戏本体、DLC 数据与反编译语料均不入库（见 `.gitignore`）。
 
 ## 我们最新的给碳基生物读的版本已经全方位超越了老式的机读版本！
-| 主题 |  |  |
+
+| 主题 | 完整版 | 简略版 |
 |---|---|---|
-|Waylith引擎的运行|[完整版](docs/readable/chapters/01-waylith/article.md)|[简略版](docs/readable/chapters/01-waylith/release.md)
+|Waylith引擎的运行|[完整版](docs/readable/chapters/01-waylith/article.md)|[简略版](docs/readable/chapters/01-waylith/release.md)|
+|UnityWorld与对象、组件的组织|[完整版](docs/readable/chapters/02-UnityWorld&UnityObject/article.md)|[简略版](docs/readable/chapters/02-UnityWorld&UnityObject/release.md)|
 
 
 ## 以下是机读版本，不建议阅读

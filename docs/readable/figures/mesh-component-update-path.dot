@@ -1,0 +1,28 @@
+digraph MeshComponentUpdatePath {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.6", ranksep="0.5", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="网格组件怎样获得调用，并组合绘制所需的数据"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.14", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  attach [label="添加普通对象上的 MeshRenderer\nGameObject.Attach → MeshRendererDriver.Register", fillcolor="#f0eafa", color="#b5a1d1"];
+  registration [label="加入驱动列表\n首次登记 Tick 到 World.PostLateUpdate"];
+  world [label="每帧 World.LateUpdate\n执行 PostLateUpdate 已登记的函数"];
+  driver [label="MeshRendererDriver.Tick\n调用各 MeshRenderer.FrameUpdate"];
+  frame [label="MeshRenderer.FrameUpdate\n检查活动状态、取得同对象上的网格和变换"];
+  draw [label="Renderer.DrawSubMeshes\n结合材质槽和层编号调用 Graphics.DrawMesh"];
+  graphics [label="Graphics\n建立绘制命令，加入后续处理的数据", fillcolor="#e8f4ed", color="#a5cbb8"];
+  mesh [label="MeshFilter\nsharedMesh", fillcolor="#f2f5f8", color="#aab8c8"];
+  transform [label="Transform\nlocalToWorldMatrix", fillcolor="#f2f5f8", color="#aab8c8"];
+  material [label="Renderer 保存的\n材质与状态", fillcolor="#f2f5f8", color="#aab8c8"];
+  attach -> registration;
+  registration -> world [style=dotted, label="登记后在相应阶段调用"];
+  world -> driver;
+  driver -> frame;
+  frame -> draw [label="检查通过且有网格"];
+  draw -> graphics;
+  mesh -> frame [style=dashed, color="#8190a3", label="网格", constraint=false];
+  transform -> frame [style=dashed, color="#8190a3", label="世界矩阵", constraint=false];
+  material -> draw [style=dashed, color="#8190a3", label="材质", constraint=false];
+  {rank=same; mesh; frame; transform;}
+  {rank=same; material; draw;}
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="实线：调用顺序；点线：登记与后续调用的连接；虚线：数据读取。\n本图描述普通对象的组件路径，具体退出条件见 FrameUpdate 源码。"];
+  graphics -> legend [style=invis];
+}

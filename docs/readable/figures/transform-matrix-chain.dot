@@ -1,0 +1,14 @@
+digraph TransformMatrixChain {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.78", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="读取 C.localToWorldMatrix：向上读取，逐层返回"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.16", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  c [label="C：当前子对象\n先建立 C 的本地矩阵\n取得父结果后返回：B 世界矩阵 × C 本地矩阵", fillcolor="#f0eafa", color="#b5a1d1"];
+  b [label="B：C 的父对象\n先建立 B 的本地矩阵\n取得父结果后返回：A 世界矩阵 × B 本地矩阵"];
+  a [label="A：根对象\n建立 A 的本地矩阵\n没有父对象，直接返回本地矩阵", fillcolor="#e8f4ed", color="#a5cbb8"];
+  c -> b [label="读取 B 的\nlocalToWorldMatrix"];
+  b -> a [label="读取 A 的\nlocalToWorldMatrix"];
+  a -> b [style=dashed, color="#4f8b71", fontcolor="#3e755d", label="返回 A 的\n世界矩阵", constraint=false];
+  b -> c [style=dashed, color="#4f8b71", fontcolor="#3e755d", label="返回 B 的\n世界矩阵", constraint=false];
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="A、B、C 为示例对象名。实线表示递归读取，虚线表示返回结果。\n这里描述 getter 的求值过程；每个对象的 TRS 使用本层原有字段。"];
+  a -> legend [style=invis];
+}

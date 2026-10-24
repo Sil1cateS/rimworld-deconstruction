@@ -1,0 +1,20 @@
+digraph TransformSetParent {
+  graph [rankdir=TB, bgcolor="white", pad="0.28", nodesep="0.55", ranksep="0.48", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="SetParent：重接层级后，怎样处理空间数值"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.14", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  save [label="保存旧的世界 position、rotation\ntrue 和 false 都先执行这一步", fillcolor="#f0eafa", color="#b5a1d1"];
+  world [label="UnityWorld.SetTransformParent\n重接 Parent、Children 与根对象列表\n处理场景归属和层级活动状态"];
+  decision [shape=diamond, style=filled, label="worldPositionStays？", fillcolor="#fff3d8", color="#cfb579", margin="0.15,0.08"];
+  restore [label="重新赋值旧的世界 position、rotation\nsetter 根据新父对象计算本地数值", fillcolor="#e8f4ed", color="#a5cbb8"];
+  keep [label="保留本地位置和本地旋转\n世界结果随新父对象换算", fillcolor="#f2f5f8", color="#aab8c8"];
+  changed [label="MarkChanged()\n记录本次变化"];
+  save -> world;
+  world -> decision;
+  decision -> restore [label="true"];
+  decision -> keep [label="false"];
+  restore -> changed;
+  keep -> changed;
+  {rank=same; restore; keep;}
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="本图从 UnityRuntime.Current 已存在的情况开始。\n本方法没有重新计算 localScale；true 只恢复这里保存的位置和旋转。"];
+  changed -> legend [style=invis];
+}

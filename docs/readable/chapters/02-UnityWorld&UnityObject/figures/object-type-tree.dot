@@ -1,0 +1,34 @@
+digraph ChapterObjectTree {
+  graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.3", ranksep="0.42", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="本章相关类型：从共同能力到组件分支\n箭头表示继承；灰色分支作为样例，详细功能留给后续模块"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=14, fontcolor="#17324d", margin="0.16,0.12", penwidth=1.2];
+  edge [color="#526d85", arrowsize=0.75, penwidth=1.2];
+  system [label="System.Object", fillcolor="#f2f5f8", color="#aab8c8"];
+  object [label="UnityEngine.Object"];
+  go [label="GameObject", fillcolor="#f0eafa", color="#b5a1d1"];
+  component [label="Component"];
+  transform [label="Transform"];
+  behaviour [label="Behaviour", fillcolor="#e8f4ed", color="#a5cbb8"];
+  mono [label="MonoBehaviour", fillcolor="#e8f4ed", color="#a5cbb8"];
+  scripts [label="Root / CameraDriver\n同级脚本示例", fillcolor="#f0eafa", color="#b5a1d1"];
+  resources [label="资源分支（合并列示）\nMesh / Material\nTexture / ScriptableObject", fillcolor="#f2f5f8", color="#aab8c8"];
+  filter [label="MeshFilter", fillcolor="#f2f5f8", color="#aab8c8"];
+  renderer [label="Renderer", fillcolor="#f2f5f8", color="#aab8c8"];
+  meshRenderer [label="MeshRenderer", fillcolor="#f2f5f8", color="#aab8c8"];
+  camera [label="Camera", fillcolor="#f2f5f8", color="#aab8c8"];
+  audio [label="AudioBehaviour", fillcolor="#f2f5f8", color="#aab8c8"];
+  audioLeaves [label="AudioSource / AudioListener\n两个直接子类", fillcolor="#f2f5f8", color="#aab8c8"];
+  system -> object;
+  object -> go;
+  object -> component;
+  object -> resources;
+  component -> transform;
+  component -> filter;
+  component -> renderer;
+  component -> behaviour;
+  renderer -> meshRenderer;
+  behaviour -> camera;
+  behaviour -> audio;
+  behaviour -> mono;
+  audio -> audioLeaves;
+  mono -> scripts;
+}
