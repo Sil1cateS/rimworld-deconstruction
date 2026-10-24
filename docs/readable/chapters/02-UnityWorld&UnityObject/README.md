@@ -9,6 +9,8 @@
 
 两版均于 2026-10-24 定稿，依据 RimWorld 1.7.4982 rev1280 的兼容层与游戏代码。
 
+两版开篇先说明与原生 Unity 的关系，以及对象模型和常用接口的保留怎样帮助旧 Mod 迁移，同时区分接口存在、行为一致与实际运行兼容。
+
 本章按以下主线展开：
 
 UnityRuntime.Step → UnityWorld 的管理记录与帧阶段 → UnityEngine.Object → GameObject 与 Component → Transform → 其他组件的协作样例 → Behaviour → MonoBehaviour 的必要功能。

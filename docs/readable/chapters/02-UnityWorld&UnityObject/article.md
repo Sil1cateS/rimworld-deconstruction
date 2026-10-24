@@ -4,6 +4,25 @@
 
 本文依据 RimWorld 1.7.4982 rev1280 的兼容层与游戏代码，解释主线程的一次更新怎样进入对象管理，场景对象和组件怎样建立关系，以及各级类型分别增加了哪些能力。
 
+**阅读前：这里与原生 Unity 有什么关系？**
+
+本章中的类型继承、GameObject 组合组件、组件共享 Transform，以及 AddComponent、GetComponent 等使用方式，大体沿用了 Unity 的对象模型。因此，熟悉 Unity 的代码仍能用相似的方式表达对象关系。[Unity 官方的 GameObject 说明](https://docs.unity3d.com/2022.3/Documentation/Manual/class-GameObject.html)
+
+内部实现则需要按当前兼容层重新理解。对照 1.6 所用的 Unity 程序集，Component.gameObject、transform 等接口通过 extern、InternalCall 进入引擎原生实现；当前兼容层将这些查询交给 UnityWorld，通过 C# 查询表和管理记录提供所属关系，再由相应列表与阶段函数组织方法调用。**这里读到的 UnityWorld，是兼容层实现这些使用方式的办法，不能直接当作原生 Unity 的内部结构。**
+
+类名和接口保留，也不代表全部功能及行为已经一致。已有两个具体例子：
+
+| 接口 | 原生 Unity | 当前兼容层 |
+| --- | --- | --- |
+| SetParent(parent, true) | 文档规定调整本地变换，以保持世界位置、旋转和缩放 | 当前方法重新应用世界位置和旋转，没有重新计算 localScale |
+| MonoBehaviour.Invoke、InvokeRepeating | 提供延后或重复调用方法的接口 | 当前 MonoBehaviour 没有提供这些成员 |
+
+原生接口对照：[SetParent 文档](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/Transform.SetParent.html)、[MonoBehaviour 接口文档](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/MonoBehaviour.html)。本章后面会结合具体类继续解释当前实现。
+
+这也说明了兼容设计对旧 Mod 的作用：如果 Mod 使用的公共接口仍然存在，而且实际行为满足原来的预期，例如添加组件、查询相机、修改 Transform，那么从源码判断，它受到引擎更换的影响会比较小。但已经编译的旧 DLL 还涉及程序集引用与运行时兼容，游戏 API 的变化也会影响结果。使用 Harmony 修改具体方法、反射读取内部字段，或深入操作渲染与资源系统的 Mod，需要核对更多实现细节；以 Def/XML 和游戏逻辑接口为主的 Mod，则更多取决于相应游戏数据与接口的变化。
+
+因此，保留对象模型并重新实现相应操作，能够降低旧代码的迁移成本；它并不单独证明大部分旧 Mod 都能原样运行。具体兼容范围还取决于 Mod 使用了哪些功能，并需要实际测试。下文的运行顺序与边界说明，均以本章注明版本的兼容层源码为依据。
+
 **阅读前可以先记住五点：**
 
 - **创建对象，还需要接入管理。** 普通场景对象通过 UnityWorld 登记，后续查询、启停和相应的方法调用才有了共同的管理关系。

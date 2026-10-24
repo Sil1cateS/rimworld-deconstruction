@@ -4,6 +4,16 @@
 
 上一章解释了 Waylith 怎样持续运行，并将绘制数据交给渲染线程。这一章从主线程的一次更新继续，认识兼容层中的对象与组件，以及负责管理它们的 UnityWorld。
 
+**阅读前：这里与原生 Unity 有什么关系？**
+
+本章的类名、继承关系和常用操作，大体沿用了 Unity 的对象模型：GameObject 组合独立组件，组件可以取得所属对象和共同的 Transform，脚本通过约定方法获得更新机会。[Unity 官方的 GameObject 说明](https://docs.unity3d.com/2022.3/Documentation/Manual/class-GameObject.html)
+
+内部实现已经改变。原生 Unity 的许多对象操作通过 C# 接口进入引擎原生实现；这里的所属关系、状态与逐帧方法调用，则由 C# 的 UnityWorld 管理。因此，本章解释的是这套兼容层怎样实现这些功能，不能将它直接视为原生 Unity 的内部结构。
+
+这种设计有助于旧 Mod 继续使用熟悉的调用方式。如果它所需的接口仍然存在，而且行为满足原来的预期，受到引擎更换的影响就会比较小。不过，同名接口也可能有差别：例如 Unity 的 SetParent(parent, true) 规定保持世界位置、旋转和缩放，当前兼容层的方法没有重新计算 localScale。[Unity SetParent 文档](https://docs.unity3d.com/2022.3/Documentation/ScriptReference/Transform.SetParent.html)
+
+已经编译的旧 DLL 还涉及程序集引用、运行时与游戏 API 的变化。修改具体方法、读取内部字段或深入操作渲染资源的 Mod，也会依赖更多实现细节。兼容层能够降低迁移成本，实际能兼容哪些 Mod，仍需核对其使用的功能并测试；本章的说明以这里注明版本的实现为依据。
+
 **省流速览**
 
 - **一个 GameObject 可以组合多个独立组件。** 相机、声音监听器和控制脚本可以属于同一个对象，共用它的 Transform。
