@@ -1,0 +1,26 @@
+digraph XmlInheritanceMerge {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="普通元素合并：逐个处理 child 的元素子节点"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  start [label="本图前提\n未进入 Inherit=False 分支\nchild 不含普通文本，但含元素子节点"];
+  more [shape=diamond, style=filled, label="还有下一个\n元素子节点？", fillcolor="#fff3d8", color="#cfb579"];
+  list [shape=diamond, style=filled, label="IsListElement\n返回 true？", fillcolor="#fff3d8", color="#cfb579"];
+  exists [shape=diamond, style=filled, label="current 有同名\n直接子元素？", fillcolor="#fff3d8", color="#cfb579"];
+  append [label="复制当前子元素\n追加到 current\n保留已有条目", fillcolor="#e8f4ed", color="#a5cbb8"];
+  recurse [label="递归合并\n子方元素 → 当前同名元素", fillcolor="#e8f4ed", color="#a5cbb8"];
+  done [label="当前这一层处理结束", fillcolor="#f0eafa", color="#b5a1d1"];
+  start -> more;
+  more -> list [label="是"];
+  more -> done [label="否"];
+  list -> append [label="是"];
+  list -> exists [label="否"];
+  exists -> append [label="否"];
+  exists -> recurse [label="是"];
+  {rank=same; append; recurse;}
+  append -> more [label="继续", constraint=false];
+  recurse -> more [label="继续", constraint=false];
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="li 或允许重复字段中的条目走追加分支，不按 Class 去重。\n普通同名元素递归处理；父方未被子方提及的字段保留。\nInherit=False、文本和空节点的不同规则见正文。"];
+  done -> legend [style=invis];
+  append -> legend [style=invis];
+  recurse -> legend [style=invis];
+}

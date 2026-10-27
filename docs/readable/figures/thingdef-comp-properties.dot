@@ -1,0 +1,25 @@
+digraph ThingDefCompProperties {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.55", ranksep="0.6", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="共同的组件配置，各自独立的组件状态"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=13, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  definition [label="longSwordDef\n一个 ThingDef 实例", fillcolor="#f0eafa", color="#b5a1d1"];
+  first [label="firstSword\n一个 ThingWithComps 实例"];
+  second [label="secondSword\n另一个 ThingWithComps 实例"];
+  firstQuality [label="第一件物品的 CompQuality\n自己的 qualityInt", fillcolor="#fff3d8", color="#cfb579"];
+  secondQuality [label="第二件物品的 CompQuality\n自己的 qualityInt", fillcolor="#fff3d8", color="#cfb579"];
+  props [label="共同的 CompProperties 配置\ncompClass 指定 CompQuality", fillcolor="#e8f4ed", color="#a5cbb8"];
+  {rank=same; firstQuality; secondQuality;}
+  {rank=same; first; second;}
+  definition -> props [label="comps 中的品质配置"];
+  props -> firstQuality [style=invis];
+  props -> secondQuality [style=invis];
+  firstQuality -> first [style=invis];
+  secondQuality -> second [style=invis];
+  first -> firstQuality [label="拥有实际组件", constraint=false];
+  second -> secondQuality [label="拥有实际组件", constraint=false];
+  firstQuality -> props [label="props", constraint=false];
+  secondQuality -> props [label="props", constraint=false];
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="箭头表示持有与引用，不表示类型继承。\n仅画本例品质配置，省略 comps 列表对象、Thing.def 引用和其他组件。"];
+  first -> legend [style=invis];
+  second -> legend [style=invis];
+}

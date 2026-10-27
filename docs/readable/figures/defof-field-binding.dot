@@ -1,0 +1,20 @@
+digraph DefOfFieldBinding {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="普通 DefOf 字段：查找已有定义，再写入静态字段"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  start [label="RebindAllDefOfs\n找到带 DefOf 标记的类型，调用 BindDefsFor"];
+  field [label="取出一个公共静态字段"];
+  valid [shape=diamond, style=filled, label="字段类型\n属于 Def？", fillcolor="#fff3d8", color="#cfb579"];
+  error [label="记录类型错误\n不对该字段执行本次绑定", fillcolor="#fbeceb", color="#d4aaa6"];
+  options [label="按 earlyTry 与条件属性决定缺失时是否报错\n默认使用字段名；DefAlias 可改为指定 defName"];
+  lookup [label="GenDefDatabase.GetDef\n按字段类型、查询名称取得现有定义"];
+  set [label="fieldInfo.SetValue(null, def)\n写入静态字段，未找到时可写入 null", fillcolor="#e8f4ed", color="#a5cbb8"];
+  sample [label="例：StatDefOf.WorkToMake\n字段类型 StatDef + 名称 WorkToMake\n绑定后保存该定义对象的引用", fillcolor="#f0eafa", color="#b5a1d1"];
+  start -> field -> valid;
+  valid -> error [label="否"];
+  valid -> options [label="是"];
+  options -> lookup -> set -> sample;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="图示一个普通非 SoundDef 字段，实际方法继续遍历其他字段。\n条件属性在此主要改变普通缺失日志，不直接禁止查询和赋值。\nSoundDef 的专用路径与静态构造时机见正文。"];
+  sample -> legend [style=invis];
+  error -> legend [style=invis];
+}

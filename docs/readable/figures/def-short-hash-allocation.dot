@@ -1,0 +1,24 @@
+digraph DefShortHashAllocation {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.45", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="GiveShortHash：为一个定义寻找可用短值"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  start [label="输入：当前 def\n以及本类型组的 takenHashes"];
+  old [shape=diamond, style=filled, label="def.shortHash\n已经非零？", fillcolor="#fff3d8", color="#cfb579"];
+  error [label="记录已有 shortHash 的错误\n返回，不重新分配", fillcolor="#fbeceb", color="#d4aaa6"];
+  candidate [label="按 defName 计算候选 num\nStableStringHash → % 65535 → ushort"];
+  used [shape=diamond, style=filled, label="num 为 0\n或已被本组占用？", fillcolor="#fff3d8", color="#cfb579"];
+  next [label="num += 1\n继续检查候选值"];
+  set [label="def.shortHash = num\ntakenHashes.Add(num)", fillcolor="#e8f4ed", color="#a5cbb8"];
+  end [label="当前定义分配结束"];
+  start -> old;
+  old -> error [label="是"];
+  old -> candidate [label="否"];
+  candidate -> used;
+  used -> next [label="是"];
+  next -> used;
+  used -> set [label="否"];
+  set -> end;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="省略寻找次数超过 5000 时的饱和提示，完整分支见正文。\n外层先按 defName 排序；一组处理完成后再建立短哈希查询字典。\n不同组分别记录占用值；shortHash 不表示实际物品的独立 ID。"];
+  end -> legend [style=invis];
+  error -> legend [style=invis];
+}

@@ -1,0 +1,36 @@
+digraph XmlObjectFieldLoop {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="普通复杂对象：找到字段，再选择读取路径"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  start [label="执行生成的复杂对象读取方法\n取得模板解析结果，建立目标对象"];
+  more [shape=diamond, style=filled, label="还有待处理\n子节点？", fillcolor="#fff3d8", color="#cfb579"];
+  field [label="跳过注释，按节点名查字段\n包括 C# 父类型的字段"];
+  found [shape=diamond, style=filled, label="取得 FieldInfo？", fillcolor="#fff3d8", color="#cfb579"];
+  skip [label="跳过本项"];
+  type [label="按字段类型与节点 Class\n确定读取类型"];
+  def [shape=diamond, style=filled, label="是 Def 类型？", fillcolor="#fff3d8", color="#cfb579"];
+  reference [label="文本作为定义名称\n登记待连接引用\n空文本的分支另设为 null", fillcolor="#fff3d8", color="#cfb579"];
+  value [label="取得字段读取委托并执行\n解析值，或递归建立配置、列表\n写入目标字段", fillcolor="#e8f4ed", color="#a5cbb8"];
+  next [label="继续下一项"];
+  post [label="字段遍历结束\n本路径若找到 PostLoad，就调用它"];
+  result [label="将建立的对象交回上层\n定义引用按后续加载流程继续连接", fillcolor="#f0eafa", color="#b5a1d1"];
+  start -> more;
+  more -> field [label="是"];
+  more -> post [label="否"];
+  field -> found;
+  found -> skip [label="否"];
+  found -> type [label="是"];
+  type -> def;
+  def -> reference [label="是"];
+  def -> value [label="否"];
+  {rank=same; reference; value;}
+  skip -> next [constraint=false];
+  reference -> next;
+  value -> next;
+  next -> more [constraint=false];
+  {rank=same; next; post;}
+  post -> result;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="只画普通复杂对象的主要路径，省略值类型装箱和异常等细节。\n自定义读取、空节点等有独立分支，并非所有对象都执行本图全部步骤。\nPostLoad 被调用时，其他 Def 的引用仍可能尚未连接。"];
+  result -> legend [style=invis];
+  next -> legend [style=invis];
+}

@@ -1,0 +1,44 @@
+digraph DefTypeTree {
+  graph [rankdir=LR, bgcolor="white", pad="0.3", nodesep="0.22", ranksep="0.6", splines=polyline, ordering=out, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label=<
+    <TABLE BORDER="0" CELLBORDER="0" CELLSPACING="0" CELLPADDING="5">
+      <TR><TD><FONT POINT-SIZE="22">Def 的 C# 继承关系（节选，非完整类型树）</FONT></TD></TR>
+      <TR><TD><FONT POINT-SIZE="16">普通类也可以作为多个子类的共同父类</FONT></TD></TR>
+      <TR><TD><FONT POINT-SIZE="12" COLOR="#526d85">实线箭头：父类 → 直接派生类。绿色框：抽象类；其余具名类均为普通类。<BR/>虚线框与省略号表示未展开的类型，不是类名；省略处也可能有更深的继承关系。<BR/>框内的例是定义对象的 defName，不是子类；本图不表示 XML 模板继承或对象引用。</FONT></TD></TR>
+    </TABLE>
+  >];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.12", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  editable [label="Editable（普通类）\n三个公共虚方法"];
+  def [label="Def（普通类）\n名称、来源、编号、\n扩展与公共处理", fillcolor="#f0eafa", color="#b5a1d1"];
+  buildable [label="BuildableDef（抽象类）\n属性、成本、放置等共同配置", fillcolor="#e8f4ed", color="#a5cbb8"];
+  thing [label="ThingDef\n例：Bow_Great\n巨弓"];
+  terrain [label="TerrainDef\n例：Soil\n土壤"];
+  recipe [label="RecipeDef\n例：ButcherCorpseFlesh\n屠宰生物配方"];
+  stat [label="StatDef\n例：MoveSpeed\n移动速度属性"];
+  research [label="ResearchProjectDef\n例：Electricity\n电力研究"];
+  style [label="StyleItemDef（抽象类）\n外观定义的共同配置", fillcolor="#e8f4ed", color="#a5cbb8"];
+  hair [label="HairDef"];
+  beard [label="BeardDef"];
+  tattoo [label="TattooDef"];
+  fur [label="FurDef"];
+  creep [label="CreepJoinerBaseDef（普通类）\n共同父类不必是抽象类"];
+  benefit [label="CreepJoinerBenefitDef"];
+  creep_omitted [label="……\n其余子类省略", style="rounded,dashed,filled", fillcolor="#f7f8fa", color="#a5adb6", fontcolor="#526d85"];
+  def_omitted [label="……\n大量其他 Def 分支省略", style="rounded,dashed,filled", fillcolor="#f7f8fa", color="#a5adb6", fontcolor="#526d85"];
+  editable -> def;
+  def -> buildable;
+  def -> style;
+  def -> creep;
+  def -> recipe;
+  def -> stat;
+  def -> research;
+  def -> def_omitted [style=dashed];
+  buildable -> thing;
+  buildable -> terrain;
+  style -> hair;
+  style -> beard;
+  style -> tattoo;
+  style -> fur;
+  creep -> benefit;
+  creep -> creep_omitted [style=dashed];
+}

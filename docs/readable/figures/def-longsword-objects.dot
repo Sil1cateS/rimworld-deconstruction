@@ -1,0 +1,26 @@
+digraph DefLongswordObjects {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.75", ranksep="0.65", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="一份长剑定义，两个独立的实际物品"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=13, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  xml [label="MeleeMedieval.xml 中的长剑节点\n及其使用的 XML 父模板", fillcolor="#f2f5f8", color="#aab8c8"];
+  database [label="DefDatabase<ThingDef>\n保存、按名查询定义", fillcolor="#f0eafa", color="#b5a1d1"];
+  definition [label="longSwordDef：实际 ThingDef 对象\ndefName 为 MeleeWeapon_LongSword\nthingClass 指定 ThingWithComps", fillcolor="#e8f4ed", color="#a5cbb8"];
+  first [label="firstSword\n一个 ThingWithComps 实例\n自己的 hitPointsInt 等状态"];
+  second [label="secondSword\n另一个 ThingWithComps 实例\n自己的 hitPointsInt 等状态"];
+  firstQuality [label="第一件物品的 CompQuality\n自己的 qualityInt", fillcolor="#fff3d8", color="#cfb579"];
+  secondQuality [label="第二件物品的 CompQuality\n自己的 qualityInt", fillcolor="#fff3d8", color="#cfb579"];
+  xml -> definition [label="经内容加载建立\n中间阶段省略", style=dashed, color="#8190a3", fontcolor="#65778d"];
+  {rank=same; database; definition;}
+  database -> definition [label="保存引用", constraint=false];
+  definition -> first [style=invis];
+  definition -> second [style=invis];
+  {rank=same; first; second;}
+  first -> definition [label="def", constraint=false];
+  second -> definition [label="def", constraint=false];
+  first -> firstQuality [label="拥有独立组件"];
+  second -> secondQuality [label="拥有独立组件"];
+  {rank=same; firstQuality; secondQuality;}
+  legend [shape=plain, style="", fontsize=13, fontcolor="#526d85", label="实线表示持有与引用，虚线概括加载；箭头不表示类型继承。\n本例两件物品都使用钢，图中省略材质定义及其他组件。"];
+  firstQuality -> legend [style=invis];
+  secondQuality -> legend [style=invis];
+}

@@ -1,0 +1,16 @@
+digraph XmlInheritanceLongSword {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="长剑从哪些 XML 模板取得共同配置"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [dir=back, color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  base [label="Name = BaseWeapon\nthingClass = ThingWithComps\n共同属性基础值、三个 comps 条目"];
+  melee [label="Name = BaseMeleeWeapon\nweaponClasses 加入 Melee\n加入近战制造等共同配置"];
+  sharp [label="Name = BaseMeleeWeapon_Sharp\nweaponClasses 追加 MeleePiercer\n补入制造材料筛选配置"];
+  quality [label="Name = BaseMeleeWeapon_Sharp_Quality\ncomps 追加品质、艺术两个配置条目"];
+  sword [label="defName = MeleeWeapon_LongSword\n长剑自身的图形、工具与其他配置\nstatBases 中写入 WorkToMake = 18000、Mass = 2", fillcolor="#e8f4ed", color="#a5cbb8"];
+  base -> melee [label="ParentName 指向父模板"];
+  melee -> sharp;
+  sharp -> quality;
+  quality -> sword;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="各框表示 XML 节点，省略本例不需要的字段。\n前四个模板均设置 Abstract=True；长剑节点继续建立实际定义。\n合并先完成上层，再克隆其结果并加入当前层内容。"];
+  sword -> legend [style=invis];
+}

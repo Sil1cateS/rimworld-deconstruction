@@ -1,0 +1,22 @@
+digraph XmlDefParserCache {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="先取得读取方法，再用它建立定义"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  input [label="DefFromNodeNew\n已通过节点与 Def 类型检查"];
+  choose [label="GetDefParserForType\n按条件选择专用或共享方法的缓存键"];
+  cached [shape=diamond, style=filled, label="parseDefMethods\n已有读取委托？", fillcolor="#fff3d8", color="#cfb579"];
+  reuse [label="直接取出已有委托", fillcolor="#e8f4ed", color="#a5cbb8"];
+  generate [label="创建 DynamicMethod\n写入读取指令 → CreateDelegate\n存入缓存", fillcolor="#e8f4ed", color="#a5cbb8"];
+  invoke [label="调用取得的委托\n传入原始 XML 节点与实际 Def 类型"];
+  object [label="执行生成的方法\n建立对象，读取字段并处理相应 PostLoad"];
+  finish [label="取得返回的 Def，整理 defNameHash\n交回调用方，之后加入内容包", fillcolor="#f0eafa", color="#b5a1d1"];
+  input -> choose -> cached;
+  cached -> reuse [label="是"];
+  cached -> generate [label="否"];
+  {rank=same; reuse; generate;}
+  reuse -> invoke;
+  generate -> invoke;
+  invoke -> object -> finish;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="生成方法与执行方法是两个时间点。\n复用的是读取方法，不是所有定义共用同一个对象。\n本图省略异常分支；字段与定义引用的区别见下一图。"];
+  finish -> legend [style=invis];
+}

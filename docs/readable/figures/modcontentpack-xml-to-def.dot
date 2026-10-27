@@ -1,0 +1,22 @@
+digraph ModContentPackXmlToDef {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.6", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="从选中的 XML 文件，到内容包中的定义"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  folders [label="各内容包的加载目录\n在 Defs/ 下按相对路径选择 XML 文件"];
+  assets [label="LoadableXmlAsset\nXML 文档 + 文件名、目录与来源内容包"];
+  combined [label="CombineIntoUnifiedXML\n导入节点，建立统一文档\n同时记录节点的来源文档"];
+  process [label="后续继续研究的 XML 处理\n补丁修改、父模板与对象读取\n建立 Def 对象", fillcolor="#f1f3f5", color="#aab8c8"];
+  owned [label="来源对应的内容包：AddDef\n填写 modContentPack、fileName\n加入本包的 defs 列表", fillcolor="#e8f4ed", color="#a5cbb8"];
+  noowner [label="没有对应内容包来源\n加入 patchedDefs", fillcolor="#fff3d8", color="#cfb579"];
+  database [label="LoadAllActiveMods 返回后\n各 DefDatabase<T>.AddAllInMods\n收集相应类型的定义", fillcolor="#f0eafa", color="#b5a1d1"];
+  folders -> assets [label="LoadDefs 枚举时读取"];
+  assets -> combined;
+  combined -> process;
+  process -> owned [label="找到来源内容包"];
+  process -> noowner [label="没有对应来源"];
+  {rank=same; owned; noowner;}
+  owned -> database;
+  noowner -> database;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="箭头表示普通加载中的处理顺序。\n文件读取完成时，XML 节点还不是 Def；\n后续对象创建完成，才有定义可以加入内容包与类型数据库。"];
+  database -> legend [style=invis];
+}

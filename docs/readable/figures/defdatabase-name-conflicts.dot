@@ -1,0 +1,20 @@
+digraph DefDatabaseNameConflicts {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.65", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="同名定义在不同位置怎样处理"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=13, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  pack [label="AddAllInMods 的包内检查\n同一包中，当前 T 的候选名称\n已经在本包出现过"];
+  helper [label="AddAllInMods 的辅助函数\n当前目标库中\n已经存在这个名称"];
+  direct [label="Add 的重名循环\n当前目标库中\n已经存在这个名称"];
+  skip [label="记录错误\n跳过当前候选项", fillcolor="#fbeceb", color="#d4aaa6"];
+  remove [label="从目标库移除旧项\n再 Add 当前项", fillcolor="#e8f4ed", color="#a5cbb8"];
+  rename [label="记录错误\n给传入对象的名称追加数字\n重复检查，直到不重名", fillcolor="#fff3d8", color="#cfb579"];
+  {rank=same; pack; helper; direct;}
+  {rank=same; skip; remove; rename;}
+  pack -> skip;
+  helper -> remove;
+  direct -> rename;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="各列只展示已重名的分支。\nAddAllInMods 先做包内检查，通过后才进入辅助函数；\n辅助函数先移走旧项，再调用 Add，通常不会再触发名称冲突。"];
+  skip -> legend [style=invis];
+  remove -> legend [style=invis];
+  rename -> legend [style=invis];
+}

@@ -48,7 +48,7 @@
 | M02 渲染模块（地图、空间与 UI 之后研究） | 渲染特性返回的数据结构、地图与 UI 绘制数据的形成、各 pass 的实现、图形资源与同步细节 | 游戏状态怎样变成绘制数据，再怎样成为具体画面；结合已经解析的地图、空间和 UI 解释实现。 |
 | M03 启动桥接与兼容层 | Bootstrap、UnityStubs、UnityCompat、运行时生命周期 | 保留的 Unity 风格 API 与生命周期怎样连接到 Waylith；游戏更新和绘制功能在哪里注册。 |
 | M04 游戏主流程与时间调度 | Root、Game、TickManager、游戏状态、时间倍率与各类更新 | 一次引擎更新怎样进入游戏；一个 tick 怎样调用地图、实体和世界系统。 |
-| M05 定义、内容与资源加载 | XML、Def、交叉引用、内容包、资产与实例创建 | 内容怎样装载和解析；运行中的对象怎样引用定义、取得行为和表现资源。 |
+| M05 定义、内容与资源加载 | XML、Def、交叉引用、内容包、资产、定义生成与加载后整理 | 内容怎样成为可查询和引用的定义；类型与组件配置怎样提供给后续系统。 |
 | M06 存档与状态恢复 | Scribe、对象身份、引用、读档初始化和派生状态重建 | 各模块怎样保存与恢复自身状态；重新载入后怎样恢复协作关系。 |
 
 ### 二、地图、空间与实体
@@ -59,7 +59,7 @@
 | M08 地图数据与查询 | Map、网格、对象索引、标记、区域设置和地图组件 | 其他系统怎样找到对象和格子，怎样记录变化、注册与注销对象。 |
 | M09 区域、房间与空间更新 | Region、Room、通行连通、屋顶与空间重建 | 地图变化怎样影响空间结构，并进一步影响寻路、环境与房间相关判断。 |
 | M10 寻路与移动 | 路径请求、搜索、代价、路径读取和移动进度 | 任务怎样请求移动，地图怎样提供通行信息，移动结果怎样反馈到 Pawn 和显示。 |
-| M11 Thing 与组件 | 对象生成、进出地图、持有关系、更新、堆叠和销毁 | 对象怎样接到地图索引、tick、交互与绘制；组件怎样扩展功能。 |
+| M11 Thing 与组件 | MakeThing、实际组件建立、实例状态与属性、进出地图、持有关系、更新、堆叠和销毁 | 对象怎样使用定义与配置，怎样接到地图索引、tick、交互与绘制；组件怎样扩展功能。 |
 | M12 Pawn 与状态管理 | Pawn 及其 trackers、身体、装备、需求、任务等状态 | 哪些状态由 Pawn 持有，哪些过程交给各 tracker；不同系统怎样共同作用于同一个 Pawn。 |
 
 ### 三、决策、任务与动作
@@ -145,6 +145,10 @@ Waylith 的第一轮源码梳理见 [01-waylith-discussion.md](01-waylith-discus
 
 Waylith 章节提供 [《从启动到每一帧：Waylith 怎样驱动 RimWorld》发布版 v1.0](chapters/01-waylith/release.md) 与 [完整解析版 v1.0](chapters/01-waylith/article.md)，均采用上述线性主线。发布版用简图与案例解释运行逻辑；完整解析版保留源码节选、详细图示和定位。此前共同修订的 [模块汇总稿 v0.2](14-waylith-summary-draft.md) 保留为参考底稿。图示保留可编辑图源与 SVG；游戏内部调度继续停在 Game.UpdatePlay 接点，待对应模块展开。
 
-下一部分先研究 [对象与组件模式](16-gameobject-component-model.md)：先用 [UnityWorld 概览](19-unityworld-overview.md) 说明管理记录、对象引用与每帧调用的关系，再从 [UnityEngine.Object](17-unityengine-object.md) 出发，按树状结构说明每一级相对于父节点增加的数据、接口和行为，继续进入 [GameObject](18-gameobject.md)、[Component](20-component.md) 及其相关子分支。当前已有 [Transform](21-transform.md) 的空间与父子关系、[MeshFilter 与 Renderer 分支](22-mesh-renderer-components.md) 的资源引用和绘制调用、[Behaviour](23-behaviour.md) 的启停管理、[Camera](24-camera.md) 的观察参数与帧内连接、[AudioBehaviour](25-audiobehaviour.md)、[AudioSource](26-audiosource.md)、[AudioListener](27-audiolistener.md) 的播放与监听连接，以及 [MonoBehaviour](28-monobehaviour.md) 的脚本调用与协程管理。这些讨论结合实例组成与相机、声音、GameRoot 等案例，解释不同类型怎样协作和获得调用。当前材料是讨论稿，按逐类阅读的进度补充。
+对象与组件部分的逐类讨论见 [对象与组件模式](16-gameobject-component-model.md)：先用 [UnityWorld 概览](19-unityworld-overview.md) 说明管理记录、对象引用与每帧调用的关系，再从 [UnityEngine.Object](17-unityengine-object.md) 出发，按树状结构说明每一级相对于父节点增加的数据、接口和行为，继续进入 [GameObject](18-gameobject.md)、[Component](20-component.md) 及其相关子分支。当前已有 [Transform](21-transform.md) 的空间与父子关系、[MeshFilter 与 Renderer 分支](22-mesh-renderer-components.md) 的资源引用和绘制调用、[Behaviour](23-behaviour.md) 的启停管理、[Camera](24-camera.md) 的观察参数与帧内连接、[AudioBehaviour](25-audiobehaviour.md)、[AudioSource](26-audiosource.md)、[AudioListener](27-audiolistener.md) 的播放与监听连接，以及 [MonoBehaviour](28-monobehaviour.md) 的脚本调用与协程管理。这些讨论结合实例组成与相机、声音、GameRoot 等案例，解释不同类型怎样协作和获得调用；逐类笔记继续作为讨论与核对材料保留。
 
 对象与组件章节现提供 [《从每一帧到对象与组件：UnityWorld 与 UnityEngine.Object》发布版 v1.0](chapters/02-UnityWorld&UnityObject/release.md) 与 [完整解析版 v1.0](chapters/02-UnityWorld&UnityObject/article.md)，范围与资料说明见 [第二章目录](chapters/02-UnityWorld&UnityObject/README.md)。正文先从 Step 进入 UnityWorld，再沿对象与组件类型展开；相机、音频、网格使用协作样例，协程只保留必要功能。发布版沿运行逻辑展开并保留必要代码和表格，完整解析版保留详细实现与定位。此前的整合草稿及逐类笔记继续作为参考材料。
+
+定义、XML 与内容组织已经进入双篇整合，入口见 [Def 框架目录](chapters/03-def-framework/README.md)：[《XML 与 Def 结构》整合稿 v0.3](chapters/03-def-framework/01-xml-and-def-structure.md) 按类型结构、XML 写法、模板合并、对象数据和公共方法的顺序展开，以明确标示省略的类型树、完整巨弓定义、选取类型的样例与字段对照辅助说明；[《Def 的加载、存储与查询》整合稿 v0.1](chapters/03-def-framework/02-def-loading-storage-query.md) 按通用流程解释普通启动中的内容选择、XML 处理、定义读取、入库、引用生成与绑定、后期整理及查询。两篇均以定义框架为范围，尚未定稿。原研究计划与笔记索引见 [模块大纲](29-def-xml-outline.md)。
+
+实际 Thing 创建、组件初始化、耐久与品质状态及属性计算留到物品模块；已有的 [长剑创建研究](42-thingmaker-and-instance-state.md) 作为该模块预备笔记保留。线程、协程与游戏 tick 的详细研究保留到后续执行与时间调度部分，结合具体调用继续展开。

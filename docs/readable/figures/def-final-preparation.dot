@@ -1,0 +1,24 @@
+digraph DefFinalPreparation {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.45", ranksep="0.4", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="DoPlayLoad：最终 DefOf 绑定之后，还要准备什么"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.14", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  start [label="前篇接点：RebindAllDefOfs(false)\n最终绑定公共静态字段"];
+  pre [label="ResetStaticDataPre\n其中包含分类关系准备 FinalizeInit"];
+  resolve [label="依次调用 ResolveAllReferences\n① ThingCategoryDef：true, true\n② RecipeDef：true, true\n③ 其他 Def 子类：true, false\n④ ThingDef：true, false", fillcolor="#e8f4ed", color="#a5cbb8"];
+  shaders [label="清除并登记 ShaderDef\n通过 ExecuteWhenFinished 安排预热函数"];
+  gen [label="GenerateImpliedDefs_PostResolve(false)\n生成并加入键位类别与键位定义"];
+  post [label="ResetStaticDataPost\n执行后续系统准备与缓存整理"];
+  dev [shape=diamond, style=filled, label="Prefs.DevMode？", fillcolor="#fff3d8", color="#cfb579"];
+  check [label="各数据库 ErrorCheckAllDefs\n未忽略的定义：遍历 ConfigErrors 并记录问题"];
+  keys [label="KeyPrefs.Init\n初始化键位设置"];
+  hash [label="GiveAllShortHashes\n按组分配 shortHash，再建立查询字典", fillcolor="#f0eafa", color="#b5a1d1"];
+  finish [label="通过 ExecuteWhenFinished 安排后续函数\n背景、语言注入、启动静态构造、材质与图集等"];
+  end [label="DoPlayLoad 返回\n外层 LoadAllPlayData 设置 loadedInt=true"];
+  start -> pre -> resolve -> shaders -> gen -> post -> dev;
+  dev -> check [label="是"];
+  dev -> keys [label="否"];
+  check -> keys;
+  keys -> hash -> finish -> end;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="普通启动路径；省略计时、进度文字与异常外层。\nResolveAllReferences 参数依次为 onlyExactlyMyType、parallel；\n前两组各自在内部并行，组与组按调用顺序推进。\nExecuteWhenFinished 的登记顺序不等于所有函数已经完成。"];
+  end -> legend [style=invis];
+}

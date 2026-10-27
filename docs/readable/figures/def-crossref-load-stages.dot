@@ -1,0 +1,22 @@
+digraph DefCrossRefLoadStages {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="普通启动中，引用解析与定义生成怎样穿插"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  xml [label="读取 XML，登记待连接引用\nAddAllInMods 将定义加入类型数据库"];
+  first [label="① ResolveAllWantedCrossReferences\nFailMode.Silent", fillcolor="#e8f4ed", color="#a5cbb8"];
+  early [label="早期 DefOf 绑定、语言等处理"];
+  subgraph cluster_generator {
+    label="DefGenerator.GenerateImpliedDefs_PreResolve 内部"; fontname="Microsoft YaHei"; fontsize=15; fontcolor="#526d85"; color="#b5c7d6"; style=rounded;
+    batch [label="先生成并加入一批定义\n包括建筑蓝图与框架、肉、科技蓝图、尸体等"];
+    second [label="② ResolveAllWantedCrossReferences\nFailMode.Silent", fillcolor="#e8f4ed", color="#a5cbb8"];
+    rest [label="继续生成并加入其他定义\n包括石质地板、配方等"];
+    batch -> second -> rest;
+  }
+  third [label="生成器返回后\n③ ResolveAllWantedCrossReferences\nFailMode.LogErrors", fillcolor="#fff3d8", color="#cfb579"];
+  clear [label="finally 中调用 Clear\n丢弃剩余待连接记录\n保留已经写入的引用", fillcolor="#f0eafa", color="#b5a1d1"];
+  after [label="最终 DefOf 绑定\n随后调用各 Def 的 ResolveReferences"];
+  xml -> first -> early -> batch;
+  rest -> third -> clear -> after;
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="只画普通启动中引用解析附近的主要阶段。\n阶段间数据库增加内容，先前找不到的目标便可能在下一次查到。\nSilent 主要控制相应缺失日志，不代表完全没有错误或警告。"];
+  after -> legend [style=invis];
+}
