@@ -4,6 +4,8 @@
 
 后续整合约定：按用户随后确定的范围，分成 [XML 与 Def 结构](chapters/03-def-framework/01-xml-and-def-structure.md) 和 [Def 的加载、存储与查询](chapters/03-def-framework/02-def-loading-storage-query.md) 两篇。v0.1 先采用通用说明；结构篇 v0.2 再按用户后续要求加入完整巨弓 XML、选取类型的定义样例与对象字段对照；v0.3 明确类型树的节选范围，按“类型结构 → XML 写法 → 模板合并 → 对象数据 → 案例字段对照 → 公共方法与扩展”重组正文。加载篇继续保持通用流程。本记录关于实际创建、品质与其他运行过程的移交边界不变；逐段研究材料仍保留。
 
+定稿状态（2026-10-28）：结构篇已提供 [发布版 v1.0](chapters/03-def-framework/01-xml-and-def-structure-release.md) 与 [完整解析版 v1.0](chapters/03-def-framework/01-xml-and-def-structure.md)。发布版保留全部正文、注释 XML、C# 代码、案例与图表，仅删除精确源码及 XML 定位；[整合草稿 v0.3](chapters/03-def-framework/01-xml-and-def-structure-draft.md) 另存保留。加载篇仍为整合草稿 v0.1。
+
 ## 一、复核结论
 
 目前没有发现需要推翻定义加载主线的明显错误。Def 的主要结构、内容来源、XML 处理、对象建立、入库、引用解析、代码生成、静态绑定、后期整理与查询入口均已有讨论材料。

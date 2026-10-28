@@ -149,6 +149,6 @@ Waylith 章节提供 [《从启动到每一帧：Waylith 怎样驱动 RimWorld�
 
 对象与组件章节现提供 [《从每一帧到对象与组件：UnityWorld 与 UnityEngine.Object》发布版 v1.0](chapters/02-UnityWorld&UnityObject/release.md) 与 [完整解析版 v1.0](chapters/02-UnityWorld&UnityObject/article.md)，范围与资料说明见 [第二章目录](chapters/02-UnityWorld&UnityObject/README.md)。正文先从 Step 进入 UnityWorld，再沿对象与组件类型展开；相机、音频、网格使用协作样例，协程只保留必要功能。发布版沿运行逻辑展开并保留必要代码和表格，完整解析版保留详细实现与定位。此前的整合草稿及逐类笔记继续作为参考材料。
 
-定义、XML 与内容组织已经进入双篇整合，入口见 [Def 框架目录](chapters/03-def-framework/README.md)：[《XML 与 Def 结构》整合稿 v0.3](chapters/03-def-framework/01-xml-and-def-structure.md) 按类型结构、XML 写法、模板合并、对象数据和公共方法的顺序展开，以明确标示省略的类型树、完整巨弓定义、选取类型的样例与字段对照辅助说明；[《Def 的加载、存储与查询》整合稿 v0.1](chapters/03-def-framework/02-def-loading-storage-query.md) 按通用流程解释普通启动中的内容选择、XML 处理、定义读取、入库、引用生成与绑定、后期整理及查询。两篇均以定义框架为范围，尚未定稿。原研究计划与笔记索引见 [模块大纲](29-def-xml-outline.md)。
+定义、XML 与内容组织分为两篇，入口见 [Def 框架目录](chapters/03-def-framework/README.md)：《XML 与 Def 结构》现提供 [发布版 v1.0](chapters/03-def-framework/01-xml-and-def-structure-release.md) 与 [完整解析版 v1.0](chapters/03-def-framework/01-xml-and-def-structure.md)，均于 2026-10-28 定稿。正文按类型结构、XML 写法、模板合并、对象数据和公共方法的顺序展开，以明确标示省略的类型树、完整巨弓定义、选取类型的样例与字段对照辅助说明；发布版只删除源码与 XML 文件的精确定位，保留全部讲解、代码、案例和图表。[《Def 的加载、存储与查询》整合稿 v0.1](chapters/03-def-framework/02-def-loading-storage-query.md) 继续待共同审阅，按通用流程解释普通启动中的内容选择、XML 处理、定义读取、入库、引用生成与绑定、后期整理及查询。原研究计划与笔记索引见 [模块大纲](29-def-xml-outline.md)。
 
 实际 Thing 创建、组件初始化、耐久与品质状态及属性计算留到物品模块；已有的 [长剑创建研究](42-thingmaker-and-instance-state.md) 作为该模块预备笔记保留。线程、协程与游戏 tick 的详细研究保留到后续执行与时间调度部分，结合具体调用继续展开。
