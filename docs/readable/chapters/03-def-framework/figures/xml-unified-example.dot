@@ -1,0 +1,26 @@
+digraph XmlUnifiedExample {
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.5", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="CombineIntoUnifiedXML：完整复制定义块，并记下来源"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  a [label="文件 A 的文档\nDefs\n└─ StatCategoryDef\n    defName = ExampleCategory"];
+  b [label="文件 B 的文档\nDefs\n└─ StatDef\n    defName = ExampleStat\n    category = ExampleCategory"];
+  {rank=same; a; b;}
+  copy [label="对每份文档的 Defs 直接子节点\nImportNode(xmlNode, true)\n连同字段一起复制", fillcolor="#e8f4ed", color="#a5cbb8"];
+  a -> copy;
+  b -> copy;
+  subgraph cluster_document {
+    label="返回的新 XmlDocument"; labeljust=l; fontname="Microsoft YaHei"; fontsize=17; fontcolor="#526d85"; color="#b5c7d6"; style=rounded;
+    defs [label="共同的 Defs 根元素", fillcolor="#f0eafa", color="#b5a1d1"];
+    category [label="StatCategoryDef 完整节点\ndefName = ExampleCategory\nlabel = 示例分类"];
+    stat [label="StatDef 完整节点\ndefName = ExampleStat\nlabel = 示例属性\ncategory = ExampleCategory"];
+    {rank=same; category; stat;}
+    defs -> category [label="直接子节点"];
+    defs -> stat [label="直接子节点"];
+  }
+  copy -> defs [label="AppendChild 加到共同根元素下"];
+  origins [label="同时填写 assetlookup\n新分类节点 → 文件 A 的 LoadableXmlAsset\n新属性节点 → 文件 B 的 LoadableXmlAsset", fillcolor="#fff3d8", color="#cfb579"];
+  category -> origins [style=dashed, label="节点作键"];
+  stat -> origins [style=dashed, label="节点作键"];
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="教学名称与字段示意。产物为统一 XML 树，以及随它传下去的节点来源记录。"];
+  origins -> legend [style=invis];
+}

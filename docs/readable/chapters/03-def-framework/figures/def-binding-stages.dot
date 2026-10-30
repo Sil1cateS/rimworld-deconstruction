@@ -10,9 +10,9 @@ digraph DefBindingStages {
   gen2 [label="PreResolve 生成器：其余部分\n继续生成并入库，然后返回"];
   third [label="③ 名称引用解析：LogErrors\nfinally 中 Clear 待连接记录", fillcolor="#fff3d8", color="#cfb579"];
   final [label="最终 DefOf 绑定：false"];
-  resolve [label="前置准备 → 各类型 ResolveReferences"];
-  later [label="PostResolve 生成 → 后置准备\n检查分支、键位与短哈希等后续阶段", fillcolor="#f0eafa", color="#b5a1d1"];
+  resolve [label="接到下一组工作\n各类型整理已经连接的定义"];
+  later [label="继续后置生成和收尾\n准备检查、键位与短哈希查询", fillcolor="#f0eafa", color="#b5a1d1"];
   db -> first -> early -> gen1 -> second -> gen2 -> third -> final -> resolve -> later;
-  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="图示普通启动，省略部分全局初始化和具体生成器。\nClear 清除登记记录，不撤销已经写入的字段与集合。\n类型自身的 ResolveReferences 与按名称解析是两个不同入口。"];
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="箭头按实际调用顺序展开生成与引用连接；省略部分全局初始化。\n生成阶段增加定义，后续解析继续寻找目标，随后进入各类型的整理。"];
   later -> legend [style=invis];
 }
