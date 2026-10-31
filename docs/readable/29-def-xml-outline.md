@@ -1,13 +1,13 @@
 # 从 XML 到游戏内容：Def 与定义系统（大纲）
 
-状态：讨论大纲 v0.6，2026-10-30 更新加载篇的功能概览与数据对照。依据工作区 RimWorld 1.7.4982 rev1280 的游戏代码整理。承接 [对象与组件章节](chapters/02-UnityWorld&UnityObject/README.md)。本组分为“XML 与 Def 结构”“Def 的加载、存储与查询”两篇；第一篇已定稿为 v1.0，按类型结构、XML、模板合并与对象数据组织，保留完整巨弓 XML、选取类型的定义样例与字段对照；第二篇重整为 v0.3，先概述各组功能的任务和结果，再讲内部调用；代码前解释名称，用教学 XML、对象与引用对照帮助理解。实际 Thing 的创建、实例状态与属性计算留到后续物品模块。
+状态：讨论大纲 v0.8，2026-10-31 调整加载篇小节的讲解顺序。依据工作区 RimWorld 1.7.4982 rev1280 的游戏代码整理。承接 [对象与组件章节](chapters/02-UnityWorld&UnityObject/README.md)。本组分为“XML 与 Def 结构”“Def 的加载、存储与查询”两篇；第一篇已定稿为 v1.0，按类型结构、XML、模板合并与对象数据组织，保留完整巨弓 XML、选取类型的定义样例与字段对照；第二篇重整为 v0.5，标题按流程内容命名，每小节先解释通用处理与源码，再以研究速度、父模板、工作分类和教学补丁对照结果。实际 Thing 的创建、实例状态与属性计算留到后续物品模块。
 
 ## 当前文章入口
 
 | 文章 | 内容范围 |
 | --- | --- |
 | XML 与 Def 结构 v1.0：[发布版](chapters/03-def-framework/01-xml-and-def-structure-release.md) · [完整解析版](chapters/03-def-framework/01-xml-and-def-structure.md) | Def 类型结构、XML 写法、模板合并、对象字段与引用、巨弓字段对照和公共方法；发布版只删除精确定位，保留全部内容 |
-| [Def 的加载、存储与查询，整合草稿 v0.3](chapters/03-def-framework/02-def-loading-storage-query.md) | 按 XML 准备、对象与存储、引用与生成、整理与使用建立功能概览；配合名称说明、源码节选和处理前后对照 |
+| [Def 的加载、存储与查询，整合草稿 v0.5](chapters/03-def-framework/02-def-loading-storage-query.md) | 各小节先讲流程与源码，再对照研究速度的 XML、对象、数据库、分类连接、DefOf 赋值与查询结果；小节标题描述处理步骤 |
 
 两篇共同存放于 [Def 框架目录](chapters/03-def-framework/README.md)。第一篇的两版均已定稿，第二篇继续共同审阅；第一篇的 [整合草稿 v0.3](chapters/03-def-framework/01-xml-and-def-structure-draft.md) 保留为底稿。下面保留逐段研究进度与原阅读计划；旧笔记中的实例创建与状态研究继续留给后续模块，当前结构篇只选择直接说明定义结构的例子。
 

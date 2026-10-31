@@ -1,14 +1,14 @@
 digraph DefLoadOverview {
-  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="Def 加载：先认识四组工作"];
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.4", ranksep="0.42", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="跟着 ResearchSpeed 看四组工作"];
   node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", margin="0.24,0.17", penwidth=1.2];
   edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
-  xml [label="① 准备 XML\n各内容包的文件 → 统一文档与来源记录\n补丁修改节点，父模板补齐内容"];
-  objects [label="② 建立与保存 Def\nXML 节点 → 对象字段与待连接记录\n内容包列表、类型库保存对象引用", fillcolor="#e8f4ed", color="#a5cbb8"];
-  connect [label="③ 连接与补充定义\n按名称查目标，写回字段与集合\n生成新定义，填写 DefOf 静态字段", fillcolor="#fff3d8", color="#cfb579"];
-  use [label="④ 整理并交给使用者\n各类型整理配置，完成检查与短哈希\n系统按名称、短哈希或已有引用取得定义", fillcolor="#f0eafa", color="#b5a1d1"];
-  xml -> objects [label="可供读取的 XML"];
-  objects -> connect [label="对象、名称字典、待连接记录"];
-  connect -> use [label="已有引用与补充后的定义集合"];
-  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="PlayDataLoader 组织整次加载；各功能内部的具体调用在正文展开。\n对象入库以后，后续生成、连接与整理也会继续查询数据库。"];
+  xml [label="① 准备 XML\n集中分类、父模板和研究速度节点\n教学补丁：minValue 0.1 → 0.2\n父模板补入 category = PawnWork 等字段"];
+  objects [label="② 建立与保存 Def\n建立研究速度 StatDef，填入名称、数值等字段\n名称字典：ResearchSpeed → 研究速度对象\n另存 category 的待连接记录", fillcolor="#e8f4ed", color="#a5cbb8"];
+  connect [label="③ 连接与补充定义\ncategory → PawnWork 分类对象\nStatDefOf.ResearchSpeed → 研究速度对象\n整批加载同时补入代码生成的定义", fillcolor="#fff3d8", color="#cfb579"];
+  use [label="④ 整理并交给使用者\n各类型整理配置和缓存，准备检查与短哈希\n按名称、静态字段或短哈希取得研究速度\n再沿 category 取得工作分类", fillcolor="#f0eafa", color="#b5a1d1"];
+  xml -> objects [label="可供读取的字段与来源"];
+  objects -> connect [label="定义对象、名称字典、待连接记录"];
+  connect -> use [label="已连接的对象与补充后的定义集合"];
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="任务概览；各组内部的调用在正文展开。\n0.2 来自本文的教学补丁。对象入库后，加载过程也会继续查询。"];
   use -> legend [style=invis];
 }

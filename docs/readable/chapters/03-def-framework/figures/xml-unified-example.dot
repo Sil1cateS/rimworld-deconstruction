@@ -1,26 +1,29 @@
 digraph XmlUnifiedExample {
-  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.5", ranksep="0.5", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="CombineIntoUnifiedXML：完整复制定义块，并记下来源"];
+  graph [rankdir=TB, bgcolor="white", pad="0.3", nodesep="0.35", ranksep="0.45", splines=polyline, fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="CombineIntoUnifiedXML：把本例三个完整节点放到一起"];
   node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.15", penwidth=1.2];
   edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
-  a [label="文件 A 的文档\nDefs\n└─ StatCategoryDef\n    defName = ExampleCategory"];
-  b [label="文件 B 的文档\nDefs\n└─ StatDef\n    defName = ExampleStat\n    category = ExampleCategory"];
+  a [label="StatCategories.xml 的文档\nDefs\n└─ StatCategoryDef\n    defName = PawnWork\n……其他节点"];
+  b [label="Stats_Pawns_WorkGeneral.xml 的文档\nDefs\n├─ StatDef：Name = IntellectualSkillBase\n└─ StatDef：defName = ResearchSpeed\n……其他节点"];
   {rank=same; a; b;}
-  copy [label="对每份文档的 Defs 直接子节点\nImportNode(xmlNode, true)\n连同字段一起复制", fillcolor="#e8f4ed", color="#a5cbb8"];
+  copy [label="遍历每份文档的 Defs 直接子节点\nImportNode(xmlNode, true) 连同字段完整复制\nAppendChild 加到新 Defs 下面", fillcolor="#e8f4ed", color="#a5cbb8"];
   a -> copy;
   b -> copy;
   subgraph cluster_document {
     label="返回的新 XmlDocument"; labeljust=l; fontname="Microsoft YaHei"; fontsize=17; fontcolor="#526d85"; color="#b5c7d6"; style=rounded;
     defs [label="共同的 Defs 根元素", fillcolor="#f0eafa", color="#b5a1d1"];
-    category [label="StatCategoryDef 完整节点\ndefName = ExampleCategory\nlabel = 示例分类"];
-    stat [label="StatDef 完整节点\ndefName = ExampleStat\nlabel = 示例属性\ncategory = ExampleCategory"];
-    {rank=same; category; stat;}
-    defs -> category [label="直接子节点"];
-    defs -> stat [label="直接子节点"];
+    category [label="StatCategoryDef 完整节点\ndefName = PawnWork\nlabel = Work\ndisplayOrder = 140"];
+    parent [label="StatDef 完整节点\nName = IntellectualSkillBase\nAbstract = True\ncategory = PawnWork\n……全部模板字段"];
+    stat [label="StatDef 完整节点\nParentName = IntellectualSkillBase\ndefName = ResearchSpeed\nminValue = 0.1\n……全部自身字段"];
+    {rank=same; category; parent; stat;}
+    defs -> category;
+    defs -> parent;
+    defs -> stat;
   }
-  copy -> defs [label="AppendChild 加到共同根元素下"];
-  origins [label="同时填写 assetlookup\n新分类节点 → 文件 A 的 LoadableXmlAsset\n新属性节点 → 文件 B 的 LoadableXmlAsset", fillcolor="#fff3d8", color="#cfb579"];
-  category -> origins [style=dashed, label="节点作键"];
-  stat -> origins [style=dashed, label="节点作键"];
-  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="教学名称与字段示意。产物为统一 XML 树，以及随它传下去的节点来源记录。"];
+  copy -> defs;
+  origins [label="同时填写 assetlookup\n新工作分类节点 → StatCategories.xml 的来源对象\n新父模板节点、新研究速度节点 → Stats_Pawns_WorkGeneral.xml 的来源对象", fillcolor="#fff3d8", color="#cfb579"];
+  category -> origins [style=dashed];
+  parent -> origins [style=dashed];
+  stat -> origins [style=dashed];
+  legend [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="此处尚未执行补丁与模板合并：minValue 仍为 0.1，三个节点各自保留原有内容。\n每个来源对象还保存 Core 内容包引用；图中省略其他文件与节点。"];
   origins -> legend [style=invis];
 }
