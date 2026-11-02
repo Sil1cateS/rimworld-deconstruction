@@ -8,20 +8,22 @@
 
 # 我们最新的给碳基生物读的版本已经全方位超越了老式的机读版本！
 
-目前两章均已定稿为 v1.0，各提供两个阅读版本：
+目前前三章均已定稿，各篇提供发布版与完整解析版 v1.0；第三章分为结构与加载两篇：
 
 | 章节 | 主要内容 | 发布版 | 完整解析版 |
 | --- | --- | --- | --- |
 | 01 · Waylith：从启动到每一帧 | 引擎创建与初始化、主循环、两条线程、队列等待，以及绘制数据到 Vulkan 的交接 | [阅读发布版](docs/readable/chapters/01-waylith/release.md) | [阅读完整解析](docs/readable/chapters/01-waylith/article.md) |
 | 02 · UnityWorld 与 UnityEngine.Object | 兼容层与原生 Unity 的关系、对象登记、组件组成、Transform、启停与更新，以及必要的协程支持 | [阅读发布版](docs/readable/chapters/02-UnityWorld&UnityObject/release.md) | [阅读完整解析](docs/readable/chapters/02-UnityWorld&UnityObject/article.md) |
+| 03a · XML 与 Def 结构 | 定义类型、XML 与父模板、对象字段、配置引用及扩展 | [阅读发布版](docs/readable/chapters/03-def-framework/01-xml-and-def-structure-release.md) | [阅读完整解析](docs/readable/chapters/03-def-framework/01-xml-and-def-structure.md) |
+| 03b · Def 的加载、存储与查询 | 文件与统一 XML、补丁、对象建立、入库、引用连接、生成及查询 | [阅读发布版](docs/readable/chapters/03-def-framework/02-def-loading-storage-query-release.md) | [阅读完整解析](docs/readable/chapters/03-def-framework/02-def-loading-storage-query.md) |
 
 第一次阅读可以先按章节顺序读发布版。发布版以运行逻辑和图示为主，在需要时保留代码块与表格；完整解析版保留较完整的源码节选、对象与状态说明、分支条件和源码定位。
 
-章节范围与图源索引见 [第一章目录](docs/readable/chapters/01-waylith/README.md)、[第二章目录](docs/readable/chapters/02-UnityWorld&UnityObject/README.md)。完整的模块规划与写作约定见 [系列大纲](docs/readable/00-series-outline.md)。
+章节范围与图源索引见 [第一章目录](docs/readable/chapters/01-waylith/README.md)、[第二章目录](docs/readable/chapters/02-UnityWorld&UnityObject/README.md)、[第三章目录](docs/readable/chapters/03-def-framework/README.md)。完整的模块规划与写作约定见 [系列大纲](docs/readable/00-series-outline.md)。
 
 ## 系列范围与研究进度
 
-当前成稿覆盖引擎运行和兼容层的对象、组件基础。后续主题包括游戏进程与 tick（游戏模拟的一步）调度、定义与存档、地图和空间、Thing 与 Pawn、AI 与工作、战斗、界面与表现，以及 DLC 独有系统；具体拆篇与顺序随模块研究继续讨论。
+当前成稿覆盖引擎运行、兼容层的对象与组件基础，以及 XML 与 Def 的结构和加载框架。后续主题包括游戏进程与 tick（游戏模拟的一步）调度、存档、地图和空间、Thing 与 Pawn、AI 与工作、战斗、界面与表现，以及 DLC 独有系统；具体拆篇与顺序随模块研究继续讨论。
 
 相机、音频和网格组件在第二章中作为协作样例，其详细功能留到对应模块。协程的完整调度也留待进程与运行部分展开。绘制数据结构与各绘制阶段的详细研究，安排在地图、空间与 UI 解析之后。
 

@@ -1,10 +1,10 @@
 # Def 的加载、存储与查询：定义怎样进入程序
 
-版本：整合草稿 v0.5｜整理日期：2026-10-31
+版本：完整解析版 v1.0｜定稿日期：2026-11-02
 
 上一篇 [《XML 与 Def 结构》](01-xml-and-def-structure.md) 介绍了定义由哪些字段和配置组成。本篇继续解释：文件里的描述，怎样成为游戏代码可以找到和使用的对象。
 
-各小节先说明当前步骤的任务、输入与输出，再结合源码解释执行过程，最后用原版“研究速度”对照具体结果。案例会贯穿全文，帮助观察同一份数据在各步骤中的变化。
+各小节先说明当前步骤的任务、输入与输出，介绍这一阶段使用的主要对象及其字段，再结合源码解释执行过程，最后用原版“研究速度”对照具体结果。案例会贯穿全文，帮助观察同一份数据在各步骤中的变化。
 
 本文依据 RimWorld 1.7.4982 rev1280 的普通启动路径，hotReload 为 false。原版 XML 与源码节选保留原有命名，省略处另行注明；中间结果按源码推导，只展示本次关注的部分。补丁和调用示意会明确标注为教学内容。
 
@@ -47,6 +47,52 @@
 
 程序用 ModContentPack 管理一个活动内容包，保存它的目录、加载顺序、程序集、资源入口和定义列表。Core、DLC 与启用的 Mod 都通过这类对象参与加载。
 
+**内容包对象保存什么。** ModContentPack 把一个包的来源信息与加载所得内容组织在一起。先看与本篇有关的字段，按源码顺序节选；省略属性、方法、资源字段等成员，保留原有类型与命名：
+
+```csharp
+public class ModContentPack
+{
+    // 省略属性、构造函数、方法与其他成员。
+    private DirectoryInfo rootDirInt;
+    public int loadOrder;
+    private string nameInt;
+    private string packageIdInt;
+    // 省略其他标识与资源字段。
+    public ModAssemblyHandler assemblies;
+    private List<PatchOperation> patches;
+    private List<Def> defs = new List<Def>();
+    // 省略资源名称缓存。
+    public List<string> foldersToLoadDescendingOrder;
+}
+```
+
+这些成员分别接到加载过程的不同位置：
+
+| 字段或属性 | 保存什么 | 在主线中怎样使用 |
+| --- | --- | --- |
+| rootDirInt；RootDir | 根目录对象；RootDir 返回其完整路径 | 以该目录为基础选择文件 |
+| nameInt、packageIdInt；Name、PackageId | 显示名称与包标识 | 识别内容来源，处理条件与日志 |
+| loadOrder | 此包的加载顺序 | 参与有顺序要求的内容处理 |
+| foldersToLoadDescendingOrder | 选定的加载目录，按优先级排列 | 文件扫描按这些目录取内容 |
+| assemblies | ModAssemblyHandler，即此包的程序集管理对象 | 加载并保存本包提供的 C# 程序集 |
+| patches；Patches | 补丁列表及其读取属性 | Patches 在列表尚未准备时调用 LoadPatches，再返回补丁供遍历 |
+| defs；AllDefs | 已建立的 Def 列表及其遍历属性 | AddDef 加入对象，后续类型数据库从这里收集 |
+
+构造函数会先保存目录、顺序和标识，再建立各类内容管理对象并确定加载目录。下面 directory、loadOrder、name、packageId 都是构造参数；this 指当前内容包。节选与上表相关的赋值，省略其余初始化：
+
+```csharp
+this.rootDirInt = directory;
+this.loadOrder = loadOrder;
+this.nameInt = name;
+// 省略其他标识赋值。
+this.packageIdInt = packageId.ToLower();
+// 省略其他标识与资源管理对象的初始化。
+this.assemblies = new ModAssemblyHandler(this);
+this.InitLoadFolders();
+```
+
+因此，文件读取阶段可以从同一个包取得目录和程序集信息；定义建立后，又可以把对象放回它的 defs。下面继续看主流程何时建立和准备这些内容包。
+
 LoadedModManager 先完成三项准备。InitializeMods 按活动顺序建立内容包对象；LoadModContent 加载各包内容，其中的程序集让后面能够找到 C# 类型；CreateModClasses 建立 Mod 派生对象，让相应 Mod 代码参与初始化。普通启动路径中的相关调用为：
 
 ```csharp
@@ -57,11 +103,73 @@ LoadedModManager.CreateModClasses();
 
 这三项准备完成后，程序已经持有活动内容包及其代码，可以继续确定目录并读取定义文件。
 
-源码定位：内容加载入口（`Verse.LoadedModManager.cs:56`）、内容包建立（`Verse.LoadedModManager.cs:183`）。
+源码定位：内容加载入口（`Verse.LoadedModManager.cs:56`）、内容包建立（`Verse.LoadedModManager.cs:183`）、构造与字段（`Verse.ModContentPack.cs:181`、`Verse.ModContentPack.cs:648`）、定义与补丁入口（`Verse.ModContentPack.cs:125`、`Verse.ModContentPack.cs:135`）、程序集管理（`Verse.ModAssemblyHandler.cs:12`）。
 
 ### 2.2 读取 XML 文件并保存来源
 
-各包通过 InitLoadFolders 确定本次加载目录，再由 LoadDefs 读取其中的 Defs 文件。目录可以受版本和活动 Mod 条件影响。读取结果用 LoadableXmlAsset 保存：xmlDoc 是内存中的 XML 树，mod 指向来源内容包，name、fullFolderPath 保存文件来源信息。
+各包通过 InitLoadFolders 确定本次加载目录，再由 LoadDefs 读取其中的 Defs 文件。目录可以受版本和活动 Mod 条件影响。读取阶段要建立两层对象：XmlDocument 保存文档内容，LoadableXmlAsset 把这份文档与文件、内容包联系起来。
+
+**XmlDocument：内存中的 XML 节点树。** System.Xml.XmlDocument 是 .NET 提供的文档对象，继承 XmlNode。文件经过 Load 读取后，元素、属性和文本成为可以查询、遍历和修改的节点；后面的补丁正是在这棵树上工作。相关接口可对照 [XmlDocument 文档](https://learn.microsoft.com/en-us/dotnet/api/system.xml.xmldocument) 与 [XmlNode 文档](https://learn.microsoft.com/en-us/dotnet/api/system.xml.xmlnode)。
+
+主线会用到下面几种类型：
+
+| 类型 | 在这棵树中表示什么 |
+| --- | --- |
+| XmlDocument | 整份文档，提供加载和创建节点等方法 |
+| XmlNode | 节点的共同基类，提供名称、子节点、文本等访问入口 |
+| XmlElement | 一个元素，例如 Defs 或一块定义 |
+| XmlAttribute | 元素上的属性，例如 Name、ParentName |
+| XmlText | 元素中的普通文本内容 |
+| XmlNodeList | 一组节点，ChildNodes 通过它交出直接子节点 |
+
+读取这些对象时，可以沿几个常用属性移动：
+
+| 成员 | 在本篇中的用途 |
+| --- | --- |
+| XmlDocument.DocumentElement | 取得文档根元素，定义文件中通常是 Defs |
+| XmlNode.ChildNodes | 取得当前节点的直接子节点 |
+| XmlNode.Name、NodeType | 取得节点名称与种类，供类型选择和节点筛选使用 |
+| XmlNode.Attributes | 取得元素的属性集合，再按名字读 Class、ParentName 等值 |
+| XmlNode.InnerText | 取得节点及其后代的文本内容，供字段读取使用 |
+| XmlNode.OwnerDocument | 取得节点所属文档，供节点创建与复制操作使用 |
+
+**LoadableXmlAsset：文档与来源。** 每读入一份文件，程序用这个对象保存文档和来源。以下是类与四个公开字段的源码节选，省略属性、构造函数及读取设置：
+
+```csharp
+public class LoadableXmlAsset
+{
+    // 省略属性、构造函数与其他成员。
+    public readonly string name;
+    public readonly string fullFolderPath;
+    public readonly XmlDocument xmlDoc;
+    public readonly ModContentPack mod;
+}
+```
+
+name 保存文件名，fullFolderPath 保存所在目录，xmlDoc 保存读出的文档引用，mod 回指来源内容包。这里 readonly 固定字段保存的值或引用，文档树的内容仍可通过 XmlDocument 的方法修改。
+
+正常文件读取采用接收 FileInfo 和 ModContentPack 的构造函数。下面 file 是文件信息，mod 是来源包，xmlReader 是文件内容对应的 XML 读取器；它按 XML 语法读出内容，Load 据此建立文档树。节选赋值与文档加载，省略底层文件读取、编码处理和异常处理：
+
+```csharp
+this.mod = mod;
+this.name = file.Name;
+this.fullFolderPath = file.Directory.FullName;
+// 省略底层读取、编码处理，以及 xmlReader 的建立。
+this.xmlDoc = new XmlDocument();
+this.xmlDoc.Load(xmlReader);
+```
+
+读取设置中的 IgnoreComments 和 IgnoreWhitespace 都为 true，所以正常文件路径会忽略注释和可忽略的空白节点，主要保留后续所需的 XML 内容。
+
+下面是**对象访问的调用示意**，用于连接刚认识的几种类型。假设已经取得一份文件对象 loadableXmlAsset；代码新声明的 xmlDoc 接收其文档，documentElement 接收根元素，childNodes 接收根元素的直接子节点列表：
+
+```csharp
+XmlDocument xmlDoc = loadableXmlAsset.xmlDoc;
+XmlElement documentElement = xmlDoc.DocumentElement;
+XmlNodeList childNodes = documentElement.ChildNodes;
+```
+
+沿这条访问路径，程序便能从文件来源对象进入文档，再取得一块块待处理的定义或模板。LoadModXML 接下来收集的，就是这些带文档和来源信息的 LoadableXmlAsset。
 
 LoadModXML 负责汇总各包返回的文件对象。下面的 runningMods 是活动内容包列表，modContentPack 是本轮处理的包，list 是结果列表；AddRange 将当前包返回的一批对象追加进去。节选正常读取路径，省略计时和异常处理：
 
@@ -121,6 +229,19 @@ Core/
 
 这时我们看到的仍是 XML。比如 `<category>PawnWork</category>` 保存的是一段名称文本；后面还需要找到实际的分类对象。
 
+放进节点树后，本例研究速度的几个名字分别位于这些位置。以下只展开文件中与它有关的部分：
+
+```text
+XmlDocument
+  DocumentElement → XmlElement，Name = "Defs"
+    ChildNodes 中的研究速度元素 → XmlElement，Name = "StatDef"
+      Attributes["ParentName"] → XmlAttribute，Value = "IntellectualSkillBase"
+      defName 子元素 → XmlElement，Name = "defName"
+        文本内容 → XmlText，值为 "ResearchSpeed"
+```
+
+因此，节点的 Name 给出 StatDef、defName 这样的元素名；读取 defName 子元素的 InnerText，才会取得 ResearchSpeed 这段文本。
+
 读入内存后，这两份文件分别成为以下来源对象；实际结果列表还包含其他文件：
 
 ```text
@@ -133,7 +254,7 @@ Core/
   mod    → 同一个 Core 的 ModContentPack
 ```
 
-源码定位：目录选择（`Verse.ModContentPack.cs:302`）、文档收集（`Verse.LoadedModManager.cs:318`）、文件扫描（`Verse.DirectXmlLoader.cs:17`）、来源对象（`Verse.LoadableXmlAsset.cs:53`）。
+源码定位：目录选择（`Verse.ModContentPack.cs:302`）、文档收集（`Verse.LoadedModManager.cs:318`）、文件扫描（`Verse.DirectXmlLoader.cs:17`）、来源对象的文件构造与字段（`Verse.LoadableXmlAsset.cs:53`、`Verse.LoadableXmlAsset.cs:96`）、读取设置（`Verse.LoadableXmlAsset.cs:111`）。
 
 XML 定位（相对于游戏目录）：分类 `Data/Core/Defs/Stats/StatCategories.xml:213`；父模板与研究速度 `Data/Core/Defs/Stats/Stats_Pawns_WorkGeneral.xml:209`、`:238`。
 
@@ -226,7 +347,7 @@ foreach (PatchOperation patchOperation in LoadedModManager.runningMods.SelectMan
 
 具体操作由 PatchOperation 的派生类实现。以替换操作 PatchOperationReplace 为例，它按 XPath 选择目标，把替换内容插到目标位置，再移除原节点。XPath 是按路径与条件选择 XML 节点的表达式。
 
-**案例对照。** 加入一个教学补丁，把研究速度的 minValue 从 0.1 改成 0.2。 假设某个启用的 Mod 提供这份补丁，并且没有后续补丁再改它。后文的数据结果继续沿用这次修改。
+**案例对照。** 加入一个教学补丁，把研究速度的 minValue 从 0.1 改成 0.2。假设某个启用的 Mod 提供这份补丁，并且没有后续补丁再改它。后文的数据结果继续沿用这次修改。
 
 PatchOperationReplace 表示替换操作；xpath 提供目标路径和条件；value 放替换进去的新节点。这里的 XPath 会沿 Defs → StatDef 查找，筛选 defName 为 ResearchSpeed 的定义，再选择它的 minValue：
 
@@ -255,6 +376,21 @@ PatchOperationReplace 找到原有 minValue，将 value 中的新元素插入原
 ### 2.5 登记并解析 XML 父模板
 
 ParseAndProcessXML 先遍历统一文档的顶层元素，调用 TryRegister 登记模板信息，再统一调用 XmlInheritance.Resolve。登记阶段收集节点的 Name、ParentName 与来源；解析阶段建立父子关系，并按父模板和子节点准备合并结果。
+
+**模板关系怎样保存。** XmlInheritance 用内部类 XmlInheritanceNode 记录一个参与模板解析的节点。xmlNode 保存原始 XML 节点，resolvedXmlNode 保存解析结果，mod 保存来源；parent 与 children 连接模板记录之间的父子关系。以下节选其类与字段，省略反编译标记：
+
+```csharp
+private class XmlInheritanceNode
+{
+    public XmlNode xmlNode;
+    public XmlNode resolvedXmlNode;
+    public ModContentPack mod;
+    public XmlInheritance.XmlInheritanceNode parent;
+    public List<XmlInheritance.XmlInheritanceNode> children = new List<XmlInheritance.XmlInheritanceNode>();
+}
+```
+
+登记阶段建立这些记录，解析阶段找到父记录并填入合并结果。GetResolvedNodeFor 就可以从原始节点查到相应记录，再取出 resolvedXmlNode 交给读取器。
 
 登记时，list 是从统一文档取得的顶层节点列表，i 是当前位置；loadableXmlAsset 是通过来源字典找到的文件对象，它的 mod 给出来源包。以下节选两处调用，省略列表准备、遍历和计时：
 
@@ -288,7 +424,7 @@ XmlInheritance.Resolve();
 
 模板合并的字段与列表规则见上一篇的 [XML 模板说明](01-xml-and-def-structure.md#四xml-模板怎样补全内容)。
 
-源码定位：登记与读取安排（`Verse.LoadedModManager.cs:437`）、取得合并结果（`Verse.XmlInheritance.cs:115`）、合并处理（`Verse.XmlInheritance.cs:265`）。
+源码定位：登记与读取安排（`Verse.LoadedModManager.cs:437`）、模板记录（`Verse.XmlInheritance.cs:481`）、取得合并结果（`Verse.XmlInheritance.cs:115`）、合并处理（`Verse.XmlInheritance.cs:265`）。
 
 ## 三、建立与保存 Def：类型选择、字段读取与入库
 
@@ -310,7 +446,13 @@ ParseAndProcessXML 遍历顶层节点，检查内容包条件后，把需要读�
 | defParserForType | 会建立和填写这种对象的读取委托，即可以调用的方法引用 |
 | def | 读取方法返回的定义对象 |
 
-类型名默认取元素名，Class 属性可以进一步指定。GetDefParserForType 取得相应读取方法，并缓存起来供同类节点复用。其委托前两个参数在签名中名为 unused、unused2，本入口传 0；后两个参数提供节点和实际类型。沿成功路径，代码为：
+类型名默认取元素名，Class 属性可以进一步指定。GetDefParserForType 取得相应读取方法，并缓存起来供同类节点复用。这个方法引用采用下面的委托类型，参数名称保留源码原样：
+
+```csharp
+public delegate Def ParseValueAndReturnDefDelegate(int unused, int unused2, XmlNode node, Type defType);
+```
+
+返回类型 Def 说明调用后交回定义对象；node、defType 提供待读节点和实际类型。前两个参数在签名中名为 unused、unused2，本入口都传 0。沿成功路径，调用代码为：
 
 ```csharp
 XmlNode resolvedNodeFor = XmlInheritance.GetResolvedNodeFor(node);
@@ -358,7 +500,7 @@ return DirectXmlToObjectNew.CreateFieldSetterForGeneralType(type);
 
 ![普通复杂对象的字段读取循环](../../figures/xml-object-field-loop.png)
 
-图中每一轮处理一个 XML 子节点，再继续下一项；字段循环由读取器生成的方法执行。[SVG](../../figures/xml-object-field-loop.svg) · [图源](../../figures/xml-object-field-loop.dot)
+图中左侧回线返回“还有未处理的子节点？”；只有遍历结束才走右上方的 PostLoad 出口。每轮都会处理或跳过当前项，再增加子节点下标；字段循环由读取器生成的方法执行。[SVG](../../figures/xml-object-field-loop.svg) · [图源](../../figures/xml-object-field-loop.dot)
 
 字段读取结束后，适用的 PostLoad 会处理刚读到的数据，随后定义返回给 ParseAndProcessXML。
 
@@ -422,6 +564,20 @@ public void AddDef(Def def, string source = "Unknown")
 
 `DefDatabase<T>` 为每种 T 保存静态列表与查询字典。T 指定本次收集和查询采用的定义类型。
 
+先看这套存储的结构。这个泛型类要求 T 继承 Def，三个静态容器分别保存列表、名称索引和短哈希索引。以下节选类声明与字段，省略属性和方法：
+
+```csharp
+public static class DefDatabase<T> where T : Def
+{
+    // 省略属性与方法。
+    private static readonly List<T> defsList = new List<T>();
+    private static readonly Dictionary<string, T> defsByName = new Dictionary<string, T>();
+    private static readonly Dictionary<ushort, T> defsByShortHash = new Dictionary<ushort, T>();
+}
+```
+
+每个封闭泛型类型各有一组静态字段。defsList 供遍历和编号，defsByName 供按 defName 查询，defsByShortHash 在后面的短哈希分配阶段填写。AllDefs 与 AllDefsListForReading 都通过属性返回这里的 defsList；后续的入库与查询围绕这些容器进行。
+
 DoPlayLoad 在完成语言元数据初始化后，遍历 Def 子类并调用各库的 AddAllInMods。下面，defType 是本轮的类型，GenGeneric.InvokeStaticMethodOnGenericType 将这个类型填进 `DefDatabase<>`，再调用指定名字的方法；Parallel.ForEach 等各类型的处理完成后再继续：
 
 ```csharp
@@ -465,7 +621,7 @@ DefDatabase<StatDef>
 
 到本部分结束，定义已有相应名称查询入口，待连接记录可以开始查找目标。
 
-源码定位：来源登记（`Verse.LoadedModManager.cs:437`、`Verse.ModContentPack.cs:610`）、入库安排（`Verse.PlayDataLoader.cs:94`）、类型收集与保存（`Verse.DefDatabase.cs:43`、`Verse.DefDatabase.cs:90`）、泛型静态调用（`Verse.GenGeneric.cs:29`）。
+源码定位：来源登记（`Verse.LoadedModManager.cs:437`、`Verse.ModContentPack.cs:610`）、入库安排（`Verse.PlayDataLoader.cs:94`）、数据库声明与存储（`Verse.DefDatabase.cs:10`、`Verse.DefDatabase.cs:346`）、遍历属性（`Verse.DefDatabase.cs:14`、`Verse.DefDatabase.cs:24`）、类型收集与保存（`Verse.DefDatabase.cs:43`、`Verse.DefDatabase.cs:90`）、泛型静态调用（`Verse.GenGeneric.cs:29`）。
 
 ## 四、连接与补充定义：引用写入、静态绑定与代码生成
 
@@ -473,7 +629,29 @@ DefDatabase<StatDef>
 
 ### 4.1 解析待连接记录并写回引用字段
 
-DirectXmlCrossRefLoader 将待处理记录保存在 wantedRefs 列表中。每条记录的 TryResolve 负责查找和相应处理；需要后置写入的部分由 Apply 完成。整批方法先并行处理记录，再调用完成项的 Apply，移出已完成项。
+DirectXmlCrossRefLoader 将待处理记录保存在 wantedRefs 列表中，列表项的共同类型是内部基类 WantedRef。它提供 TryResolve、Apply 等处理入口，并用 wanter 保存接收对象。普通字段使用派生类 WantedRefForObject，再补上字段信息、目标名称与查询结果。下面节选两个内部类的相关字段，省略方法及其他成员：
+
+```csharp
+private abstract class WantedRef
+{
+    // 省略处理方法。
+    public object wanter;
+}
+
+private class WantedRefForObject : DirectXmlCrossRefLoader.WantedRef
+{
+    // 省略属性、构造函数与方法。
+    private readonly FieldInfo fi;
+    private readonly string defName;
+    // 省略内容包条件字段。
+    private readonly Type overrideFieldType;
+    private Def resolvedDef;
+}
+```
+
+fi 描述需要填写的字段；它与基类中的 wanter 一起确定写入位置。defName 和可选的 overrideFieldType 提供查询信息，resolvedDef 暂存找到的对象。因此，一条记录既知道要找什么，也知道找到以后写到哪里。
+
+每条记录的 TryResolve 负责查找和相应处理；需要后置写入的部分由 Apply 完成。整批方法先并行处理记录，再调用完成项的 Apply，移出已完成项。
 
 对普通字段记录，程序从记录中取得字段类型和目标名称，查询相应数据库，再把目标写入接收对象。下面这段位于普通字段记录的 TryResolve 中，this 是当前记录：fi 保存字段信息，wanter 保存接收对象，defName 保存目标名称，resolvedDef 保存查询结果。overrideFieldType 若已指定就作为查询类型，否则取 fi.FieldType；GetDefSilentFail 的最后一个参数启用声音定义的专门查询规则。节选查找并写入成功的路径：
 
@@ -583,7 +761,7 @@ DefDatabase<T>.Add(def);
 
 **案例对照。** 研究速度和工作分类都来自 XML，入库后就具备连接条件，可以在首轮解析中接上 category。整批内容还包括根据建筑配置生成的蓝图、框架等定义，后面的解析会继续处理与这些新增目标有关的记录。
 
-源码定位：名称连接与外层顺序（`Verse.PlayDataLoader.cs:94`）、记录处理（`Verse.DirectXmlCrossRefLoader.cs:247`）、字段写入（`Verse.DirectXmlCrossRefLoader.cs:333`、`Verse.DirectXmlCrossRefLoader.cs:388`）、静态字段与绑定（`RimWorld.StatDefOf.cs:259`、`RimWorld.DefOfHelper.cs:27`）、生成安排和入库（`RimWorld.DefGenerator.cs:11`、`RimWorld.DefGenerator.cs:72`）。
+源码定位：名称连接与外层顺序（`Verse.PlayDataLoader.cs:94`）、记录列表与结构（`Verse.DirectXmlCrossRefLoader.cs:280`、`Verse.DirectXmlCrossRefLoader.cs:286`、`Verse.DirectXmlCrossRefLoader.cs:301`）、记录处理（`Verse.DirectXmlCrossRefLoader.cs:247`）、字段写入（`Verse.DirectXmlCrossRefLoader.cs:333`、`Verse.DirectXmlCrossRefLoader.cs:388`）、静态字段与绑定（`RimWorld.StatDefOf.cs:259`、`RimWorld.DefOfHelper.cs:27`）、生成安排和入库（`RimWorld.DefGenerator.cs:11`、`RimWorld.DefGenerator.cs:72`）。
 
 ## 五、整理与收尾：准备各类型的数据和查询入口
 
@@ -728,4 +906,4 @@ public static T GetByShortHash(ushort shortHash)
 
 源码定位：名称查询（`Verse.DefDatabase.cs:251`）、按 Type 查询（`Verse.GenDefDatabase.cs:13`）、遍历入口（`Verse.DefDatabase.cs:14`、`Verse.DefDatabase.cs:24`）、短哈希查询（`Verse.DefDatabase.cs:291`）。
 
-目录与版本状态见 [本组目录](README.md)。目录选择、补丁组合、读取器分支与引用记录的详细研究，保留在 [研究笔记索引](../../29-def-xml-outline.md#逐段研究进度)中。
+简洁阅读见 [发布版](02-def-loading-storage-query-release.md)。此前共同修订的 [整合草稿 v0.6](02-def-loading-storage-query-draft.md) 保留为底稿。目录与版本状态见 [本组目录](README.md)。目录选择、补丁组合、读取器分支与引用记录的详细研究，保留在 [研究笔记索引](../../29-def-xml-outline.md#逐段研究进度)中。
