@@ -1,0 +1,26 @@
+// Render fixed positions with: neato -n2 -Tpng long-event-iterator-loop.dot -o long-event-iterator-loop.png
+digraph LongEventIteratorLoop {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.26", fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="迭代器长任务：一段工作返回后检查时间"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.13", width=4.3, height=0.8, penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  entry [pos="350,1180!", label="Root.Update → LongEventsUpdate\n当前任务保存了 IEnumerator"];
+  time [pos="350,1040!", label="进入 UpdateCurrentEnumeratorEvent\nnum = 当前持续计时 + 0.1 秒"];
+  move [pos="350,880!", height=1.0, label="调用同一个推进对象的 MoveNext\n从上次停下的位置继续\n直到下一次 yield、结束或异常"];
+  more [pos="350,700!", shape=diamond, style=filled, width=3.8, height=1.25, label="MoveNext\n返回 true？", fillcolor="#fff3d8", color="#cfb579"];
+  budget [pos="350,500!", shape=diamond, style=filled, width=3.8, height=1.35, label="当前时间已到达 num？\nnum ≤ Time.realtimeSinceStartup", fillcolor="#fff3d8", color="#cfb579"];
+  done [pos="880,700!", width=4.3, height=1.5, label="正常结束\n调用可选 Dispose，保存 callback\n清空记录，再执行后续列表与完成函数\n返回方法", fillcolor="#e8f4ed", color="#a5cbb8"];
+  preserve [pos="880,500!", width=4.3, height=1.25, label="本次调用返回\n保留 currentEvent 与迭代进度\n后续更新重新计算截止时间，再继续", fillcolor="#f0eafa", color="#b5a1d1"];
+  node [shape=point, width=0.001, height=0.001, label="", style=invis];
+  loop_bottom [pos="45,500!"];
+  loop_top [pos="45,880!"];
+  entry:s -> time:n;
+  time:s -> move:n;
+  move:s -> more:n;
+  more:s -> budget:n [label="是"];
+  more:e -> done:w [label="否"];
+  budget:e -> preserve:w [label="是：到时返回"];
+  budget:w -> loop_bottom [label="否", arrowhead=none];
+  loop_bottom -> loop_top [arrowhead=none];
+  loop_top -> move:w [label="继续本次调用"];
+  legend [pos="610,300!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="全部步骤沿主线程执行；图按正常路径绘制，异常清理见正文。\n时间检查发生在 MoveNext 返回 true 之后；同一次更新可以连续推进多段工作。"];
+}

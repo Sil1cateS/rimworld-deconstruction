@@ -1,0 +1,27 @@
+digraph ParallelXmlReading {
+  graph [rankdir=TB, bgcolor="white", pad="0.27", nodesep="0.4", ranksep="0.55", splines=polyline, fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="XML 并行读取：共同取文件，按下标写回"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.13", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  prepare [label="调用方筛选文件\n建立 assets 数组，为每份文件分配下标"];
+  bag [label="共同的待处理集合 toLoad\n每项：(结果下标，FileInfo)", fillcolor="#fff3d8", color="#cfb579"];
+  reader1 [label="读取线程 1\n反复 TryTake → 读取文件\n取不到新项后退出线程", fillcolor="#fff3d8", color="#cfb579"];
+  caller [label="调用方也参与读取\n反复 TryTake → 读取文件\n取不到新项后进入等待"];
+  reader2 [label="读取线程 2\n反复 TryTake → 读取文件\n取不到新项后退出线程", fillcolor="#fff3d8", color="#cfb579"];
+  {rank=same; reader1; caller; reader2;}
+  assets [label="共同的结果数组 assets\n每份文档写入它预先分配的下标\n读取进行中可以仍有未填位置", fillcolor="#e8f4ed", color="#a5cbb8"];
+  join [label="调用方依次 Join 两个读取线程\n等待它们处理完已取得的文件并结束", fillcolor="#f0eafa", color="#b5a1d1"];
+  {rank=same; assets; join;}
+  result [label="Join 均返回后，return assets\n调用方继续后面的加载步骤", fillcolor="#e8f4ed", color="#a5cbb8"];
+  prepare -> bag [label="建立任务项"];
+  bag -> reader1 [label="TryTake"];
+  bag -> caller [label="TryTake"];
+  bag -> reader2 [label="TryTake"];
+  reader1 -> assets [label="按 key2 写入"];
+  caller -> assets [label="按 key 写入"];
+  reader2 -> assets [label="按 key2 写入"];
+  caller -> join [style=dashed, label="本方取不到新项后"];
+  assets -> result [label="结果数组"];
+  join -> result [style=dashed, label="等待完成后返回"];
+  note [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="实线表示文件或结果流向；虚线表示调用方的等待与返回。\n本文启动案例中，调用方是长任务线程；主线程仍逐帧检查这项长任务并绘制加载界面。"];
+  result -> note [style=invis];
+}

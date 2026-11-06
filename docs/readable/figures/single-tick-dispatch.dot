@@ -1,0 +1,16 @@
+digraph SingleTickDispatch {
+  graph [rankdir=TB, bgcolor="white", pad="0.26", nodesep="0.4", ranksep="0.32", splines=polyline, fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="DoSingleTick：一次模拟步的主要顺序"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.22,0.13", width=5.0, penwidth=1.2];
+  edge [color="#526d85", arrowsize=0.75, penwidth=1.3];
+  pre [label="遍历 Find.Maps\n逐张调用 MapPreTick"];
+  time [label="游戏计数增加 1（普通路径）\n更新着色器全局参数 GameSeconds"];
+  lists [label="依次调用三个 TickList\nNormal → Rare → Long\n各列表选择本次轮到的一组对象", fillcolor="#fff3d8", color="#cfb579"];
+  world [label="日期、剧本与 WorldTick\n剧情观察、结局、叙事者\n故事事件记录与任务"];
+  worldpost [label="调用 WorldPostTick"];
+  post [label="再次遍历地图列表\n逐张调用 MapPostTick"];
+  tail [label="历史、GameComponentTick、信件\n自动存档检查、污物监测、运输船对象", fillcolor="#e8f4ed", color="#a5cbb8"];
+  end [label="返回 TickManagerUpdate\n记录本步完成情况，再判断是否继续", fillcolor="#f0eafa", color="#b5a1d1"];
+  pre -> time -> lists -> world -> worldpost -> post -> tail -> end;
+  note [shape=plain, style="", width=0, fontsize=12, fontcolor="#526d85", label="箭头表示主线程上的顺序调用；按普通路径绘制，省略调试与异常处理。\n地图前置处理发生在本次计数增加之前，后续调用发生在增加之后。"];
+  end -> note [style=invis];
+}

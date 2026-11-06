@@ -1,0 +1,26 @@
+digraph PlayFrameEntry {
+  graph [rankdir=TB, bgcolor="white", pad="0.28", nodesep="0.4", ranksep="0.38", splines=polyline, fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="从场景组件进入 Game 的游玩更新"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.2,0.13", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  entry [label="UnityRuntime.Step → UnityWorld.Update\n调用当前活动 Root_Play 的 Update"];
+  shared [label="base.Update：执行 Root.Update\n推进时间与长任务\n按条件更新共享服务、界面与声音"];
+  wait [shape=diamond, style=filled, label="ShouldWaitForEvent\n或 destroyed？", fillcolor="#fff3d8", color="#cfb579"];
+  prefix [label="起飞与结局倒计时、目标高亮"];
+  subgraph cluster_game {
+    label="Game 更新"; labeljust=l; fontname="Microsoft YaHei"; fontsize=17; fontcolor="#526d85"; color="#b5c7d6"; style=rounded; margin=16;
+    letters [label="尝试自动打开信件"];
+    ticks [label="TickManagerUpdate\n决定并执行本帧的模拟推进", fillcolor="#fff3d8", color="#cfb579"];
+    other [label="继续信件、世界与各地图的帧更新\n再处理游玩信息、游戏级组件\n信号计数与纹理图集管理", fillcolor="#e8f4ed", color="#a5cbb8"];
+    letters -> ticks;
+    ticks -> other [label="方法返回后继续"];
+  }
+  tail [label="返回 Root_Play\n继续音乐更新与性能检查"];
+  end [label="本次 Root_Play.Update 返回\n外层继续余下帧阶段", fillcolor="#f0eafa", color="#b5a1d1"];
+  entry -> shared -> wait;
+  wait -> prefix [label="否"];
+  wait:e -> end:e [label="是：提前返回", constraint=false, minlen=2];
+  prefix -> letters;
+  other -> tail -> end;
+  note [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="箭头表示当前 Root_Play 分支的执行顺序；省略其他组件与异常路径。\n游戏暂停由 TickManager 的内部判断处理，外层仍可继续后续调用。"];
+  end -> note [style=invis];
+}

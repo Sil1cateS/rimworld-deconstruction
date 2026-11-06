@@ -1,0 +1,34 @@
+// Render fixed positions with: neato -n2 -Tpng time-speed-control.dot -o time-speed-control.png
+digraph TimeSpeedControl {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.26", fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="从速度选择到本帧推进：状态怎样参与判断"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.13", width=3.5, height=0.8, penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  input [pos="190,1070!", label="按钮 / 快捷键 / 暂停请求\n通过控制检查后修改选择"];
+  pauseinput [pos="570,1070!", label="窗口、长任务、地块选择\n过场与其他暂停条件"];
+  eventinput [pos="950,1070!", label="信件、事件、伤害与动作\n按各自条件请求强制正常速度"];
+  selected [pos="190,950!", label="保存的 curTimeSpeed\n保留玩家所选状态"];
+  forcepause [pos="570,950!", label="当前 ForcePaused 状态"];
+  slower [pos="950,950!", label="TimeSlower 保存\nforceNormalSpeedUntil"];
+  paused [pos="380,770!", shape=diamond, style=filled, width=3.8, height=1.35, label="Paused？\n所选状态为 Paused 或 ForcePaused", fillcolor="#fff3d8", color="#cfb579"];
+  zero [pos="780,770!", width=3.4, height=0.9, label="本帧推进 0 个 tick\n返回后继续其他帧级工作", fillcolor="#f0eafa", color="#b5a1d1"];
+  normal [pos="380,580!", shape=diamond, style=filled, width=3.8, height=1.35, label="ForcedNormalSpeed？\n当前 tick 仍在截止时间前", fillcolor="#fff3d8", color="#cfb579"];
+  rate1 [pos="190,400!", width=3.35, height=0.85, label="TickRateMultiplier = 1\n暂时采用正常速度"];
+  chosen [pos="590,400!", width=3.7, height=0.85, label="按 curTimeSpeed 与游戏状态\n计算 TickRateMultiplier"];
+  loop [pos="380,225!", width=6.6, height=1.05, label="计算 CurTimePerTick，进入推进循环\n每步扣除时间；受数量、暂停与耗时条件限制", fillcolor="#e8f4ed", color="#a5cbb8"];
+  node [shape=point, width=0.001, height=0.001, label="", style=invis];
+  slower_right [pos="950,580!"];
+  input:s -> selected:n;
+  pauseinput:s -> forcepause:n;
+  eventinput:s -> slower:n;
+  selected:s -> paused:nw;
+  forcepause:s -> paused:ne;
+  paused:e -> zero:w [label="是"];
+  paused:s -> normal:n [label="否"];
+  slower:s -> slower_right [arrowhead=none];
+  slower_right -> normal:e [label="读取截止判断"];
+  normal:sw -> rate1:n [label="是"];
+  normal:se -> chosen:n [label="否"];
+  rate1:s -> loop:nw;
+  chosen:s -> loop:ne;
+  legend [pos="570,70!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="上方箭头表示状态来源，下方表示 TickManagerUpdate 的检查顺序；省略输入拒绝细节与调试分支。\n强制正常速度生效期间，curTimeSpeed 保留原选择；游戏计数到达截止 tick 后，倍率重新按该选择计算。"];
+}

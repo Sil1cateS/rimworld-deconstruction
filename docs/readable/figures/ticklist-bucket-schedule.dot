@@ -1,0 +1,22 @@
+// Render fixed positions with: neato -n2 -Tpng ticklist-bucket-schedule.dot -o ticklist-bucket-schedule.png
+digraph TickListBucketSchedule {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.25", fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="Rare：把对象分成 250 组，每个 tick 处理一组"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.17,0.13", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  register [pos="410,620!", width=7.7, height=0.85, label="登记到分组：GetHashCode() % 250\nA：501 → 1；B：751 → 1；C：750 → 0；D：502 → 2；E：749 → 249"];
+  group0 [pos="85,475!", width=1.5, height=0.85, label="第 0 组\nC"];
+  group1 [pos="250,475!", width=2.1, height=0.85, label="第 1 组\nA，B", fillcolor="#fff3d8", color="#cfb579"];
+  group2 [pos="415,475!", width=1.5, height=0.85, label="第 2 组\nD"];
+  more [pos="580,475!", shape=plain, style="", label="……\n其余分组"];
+  group249 [pos="745,475!", width=1.5, height=0.85, label="第 249 组\nE"];
+  choose [pos="250,325!", width=3.3, height=0.9, label="当前 TicksGame = 1001\n1001 % 250 = 1"];
+  calls [pos="250,195!", width=4.1, height=0.9, label="遍历本次选中的第 1 组\nA.DoTick() → B.DoTick()", fillcolor="#e8f4ed", color="#a5cbb8"];
+  time [pos="630,260!", width=3.9, height=1.5, label="沿 tick 轮换\n1000 → 第 0 组：C\n1001 → 第 1 组：A，B\n1002 → 第 2 组：D\n……\n1251 → 再到第 1 组：A，B", fillcolor="#f0eafa", color="#b5a1d1"];
+  register:s -> group0:n;
+  register:s -> group1:n;
+  register:s -> group2:n;
+  register:s -> group249:n;
+  choose:n -> group1:s [label="选中"];
+  choose:s -> calls:n;
+  legend [pos="410,60!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="示例对象均为未销毁、未被持有、未实现 IThingHolder 的 Rare 对象；省略其他分组内容。\n普通推进时，同一组每 250 tick 取得一次调用；A、B 是案例标签。"];
+}

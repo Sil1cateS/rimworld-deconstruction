@@ -1,0 +1,29 @@
+// Render fixed positions with: neato -n2 -Tpng threadpool-completion-wait.dot -o threadpool-completion-wait.png
+digraph ThreadPoolCompletionWait {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.27", fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="线程池批次完成：增加计数，通知调用方重读"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.13", width=4.3, height=0.95, penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  callerlabel [pos="300,1350!", shape=plain, style="", fontsize=18, label="调用方：本例为长任务线程"];
+  poollabel [pos="970,1350!", shape=plain, style="", fontsize=18, label="线程池工作项：可以有多批"];
+  submit [pos="300,1200!", label="初始化 count、tasksDone 与等待对象\n按区间建立批次，逐批提交"];
+  batch [pos="970,1200!", label="可用线程开始执行本批\nforeach localBatch，逐项 callback(t)\n每项有自己的异常捕获", fillcolor="#fff3d8", color="#cfb579"];
+  count [pos="970,1010!", label="本批遍历结束\nInterlocked.Add(ref tasksDone,\n(long)localBatch.Count)", fillcolor="#e8f4ed", color="#a5cbb8"];
+  signal [pos="970,800!", label="taskDoneEvent.Set()\n通知有批次完成", fillcolor="#e8f4ed", color="#a5cbb8"];
+  check [pos="300,940!", shape=diamond, style=filled, width=3.8, height=1.35, label="读取 tasksDone\n与目标 count 比较\n已经完成全部项？", fillcolor="#fff3d8", color="#cfb579"];
+  wait [pos="300,700!", label="taskDoneEvent.WaitOne()\n没有通知时等待\n取得通知后继续，并自动复位"];
+  done [pos="620,940!", width=3.4, height=1.15, label="返回 ParallelForEach\n调用方继续 Apply\n再移除本轮成功记录", fillcolor="#f0eafa", color="#b5a1d1"];
+  node [shape=point, width=0.001, height=0.001, label="", style=invis];
+  loop_bottom [pos="35,700!"];
+  loop_top [pos="35,940!"];
+  submit:e -> batch:w [label="QueueUserWorkItem"];
+  submit:s -> check:n [label="提交后先检查"];
+  batch:s -> count:n;
+  count:s -> signal:n;
+  check:e -> done:w [label="是"];
+  check:s -> wait:n [label="否"];
+  signal:w -> wait:e [style=dashed, label="Set 可让等待继续"];
+  wait:w -> loop_bottom [arrowhead=none];
+  loop_bottom -> loop_top [arrowhead=none];
+  loop_top -> check:w [label="返回后重读"];
+  note [pos="650,490!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="每批先累计项数，再 Set；调用方每次取得机会都重新检查总量。\n多个通知可以合并，完成量由 tasksDone 保存；是否返回由 count 与 tasksDone 的比较决定。"];
+}

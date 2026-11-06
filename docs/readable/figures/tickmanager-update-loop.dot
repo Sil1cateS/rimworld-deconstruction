@@ -1,0 +1,46 @@
+// Render fixed positions with: neato -n2 -Tpng tickmanager-update-loop.dot -o tickmanager-update-loop.png
+digraph TickManagerUpdate {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.25", fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="TickManagerUpdate：本帧怎样推进 tick"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.13", width=3.6, height=0.72, penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  start [pos="310,1100!", label="进入本帧调用\nticksThisFrame = 0"];
+  paused [pos="310,990!", shape=diamond, style=filled, width=2.7, height=1.05, label="Paused？", fillcolor="#fff3d8", color="#cfb579"];
+  add [pos="310,855!", height=1.2, label="取得 curTimePerTick\n把本帧时间加入 realTimeToTickThrough\n接近一步间隔时，按一步间隔加入"];
+  clock [pos="310,735!", label="取得 tickRateMultiplier\n重置并启动 clock"];
+  loop [pos="310,600!", shape=diamond, style=filled, width=4.1, height=1.55, label="余额 > 0\n且本帧步数 < 倍率 × 2？", fillcolor="#fff3d8", color="#cfb579"];
+  tick [pos="310,450!", height=1.15, label="调用一次 DoSingleTick\n扣除 curTimePerTick，本帧步数加 1\n记录单步耗时"];
+  limit [pos="310,295!", shape=diamond, style=filled, width=3.9, height=1.5, label="已经暂停\n或累计耗时 > 约 45.45 ms？", fillcolor="#fff3d8", color="#cfb579"];
+  clear [pos="800,450!", width=3.65, height=1.05, label="结束循环后处理余额\n若为正值则清零\n零值和负值保留", fillcolor="#e8f4ed", color="#a5cbb8"];
+  end [pos="800,150!", width=3.65, height=0.9, label="返回 Game.UpdatePlay\n继续后面的帧级调用", fillcolor="#f0eafa", color="#b5a1d1"];
+  node [shape=point, width=0.001, height=0.001, label="", style=invis];
+  loop_top [pos="30,600!"];
+  loop_bottom [pos="30,295!"];
+  paused_right [pos="1080,990!"];
+  paused_bottom [pos="1080,150!"];
+  exit_top [pos="800,600!"];
+  break_right [pos="800,295!"];
+  clear_right [pos="1000,450!"];
+  clear_bottom [pos="1000,225!"];
+  end_above [pos="800,225!"];
+  start:s -> paused:n;
+  paused:s -> add:n [label="否"];
+  paused:e -> paused_right [label="是：跳过推进", arrowhead=none];
+  paused_right -> paused_bottom [arrowhead=none];
+  paused_bottom -> end:e;
+  add:s -> clock:n;
+  clock:s -> loop:n;
+  loop:s -> tick:n [label="是"];
+  loop:e -> exit_top [label="否：退出", arrowhead=none];
+  exit_top -> clear:n;
+  tick:s -> limit:n;
+  limit:w -> loop_bottom [label="否", arrowhead=none];
+  loop_bottom -> loop_top [arrowhead=none];
+  loop_top -> loop:w [label="继续"];
+  limit:e -> break_right [label="是：break", arrowhead=none];
+  break_right -> clear:s;
+  clear:e -> clear_right [arrowhead=none];
+  clear_right -> clear_bottom [arrowhead=none];
+  clear_bottom -> end_above [arrowhead=none];
+  end_above -> end:n;
+  legend [shape=plain, style="", pos="560,30!", fontsize=12, fontcolor="#526d85", label="余额 = realTimeToTickThrough；本帧步数 = ticksThisFrame；倍率 = tickRateMultiplier。\n左侧回线返回 while 判断；负余额参与下一帧计算，正余额在循环结束后清零。"];
+}

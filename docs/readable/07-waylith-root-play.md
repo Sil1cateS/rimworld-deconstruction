@@ -2,7 +2,7 @@
 
 阅读位置：UnityRuntime.Step → UnityWorld.Update → 活动 Behaviour 的 Update → Root_Entry / Root_Play。本笔记保存从 Waylith 汇总稿移出的游戏层说明，再沿 Root_Play 的共享更新、提前返回、游玩专用更新三段阅读，停在 Game.UpdatePlay 的入口。
 
-进度书签：本笔记保留为游戏流程模块的前置材料。Game.UpdatePlay 内部尚未展开；当前 Waylith 主线已返回 RunLoop 的帧采集部分，见 [主线程怎样准备 RenderFrame](08-waylith-frame-capture.md)。
+进度书签：本笔记保留早期进入 Root_Play 的阅读材料。游戏运行模块现从 [Game.UpdatePlay 的帧级分派](45-game-update-entry.md) 接续，下一步进入 TickManager；当时返回 Waylith 的帧采集进度仍见 [主线程怎样准备 RenderFrame](08-waylith-frame-capture.md)。
 
 ## GameRoot 和 Root 承担什么工作
 
@@ -156,6 +156,6 @@ circleOverlays
 
 源方法将通过检查后的整组游玩更新包在同一个 try/catch 中。如果其中一次调用抛出异常并传播到这里，本次剩余调用会被跳过，然后记录错误。Root.Update 自己也有一个 try/catch；不能将此理解为每项更新都有独立的异常隔离。
 
-后续恢复游戏流程阅读时，从 Game.UpdatePlay 接续。它调用 TickManagerUpdate，也会继续更新信件、世界、地图、GameComponent 和其他管理器。届时需要进一步区分每帧入口与游戏 tick，才能解释暂停、倍速和同一帧内可能发生的模拟推进。
+游戏流程现已从 [Game.UpdatePlay 的帧级分派](45-game-update-entry.md) 接续：先介绍当前游戏对象与一帧的调用顺序，再进入 TickManager，追踪暂停、倍速和同一帧内的模拟推进。
 
 定位：Root_Play 的异常范围（`Verse.Root_Play.cs:70`）、Game.UpdatePlay（`Verse.Game.cs:661`）。

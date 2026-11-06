@@ -49,7 +49,7 @@
 | M01 Waylith 引擎运行 | 启动、窗口、输入轮询、主循环、时间、主线程回调、限速、退出，以及绘制数据到 Vulkan 的交接 | 引擎怎样驱动游戏更新；怎样收集绘制数据、交给渲染线程、记录并提交 Vulkan 指令。 |
 | M02 渲染模块（地图、空间与 UI 之后研究） | 渲染特性返回的数据结构、地图与 UI 绘制数据的形成、各 pass 的实现、图形资源与同步细节 | 游戏状态怎样变成绘制数据，再怎样成为具体画面；结合已经解析的地图、空间和 UI 解释实现。 |
 | M03 启动桥接与兼容层 | Bootstrap、UnityStubs、UnityCompat、运行时生命周期 | 保留的 Unity 风格 API 与生命周期怎样连接到 Waylith；游戏更新和绘制功能在哪里注册。 |
-| M04 游戏主流程与时间调度 | Root、Game、TickManager、游戏状态、时间倍率与各类更新 | 一次引擎更新怎样进入游戏；一个 tick 怎样调用地图、实体和世界系统。 |
+| M04 游戏运行与调度 | Root、Game、TickManager、游戏状态与时间、长任务、线程协作和协程 | 一帧怎样进入游戏、决定并分派 tick；耗时任务怎样执行、等待与交接；协程按什么条件继续。 |
 | M05 定义、内容与资源加载 | XML、Def、交叉引用、内容包、资产、定义生成与加载后整理 | 内容怎样成为可查询和引用的定义；类型与组件配置怎样提供给后续系统。 |
 | M06 存档与状态恢复 | Scribe、对象身份、引用、读档初始化和派生状态重建 | 各模块怎样保存与恢复自身状态；重新载入后怎样恢复协作关系。 |
 
@@ -153,4 +153,8 @@ Waylith 章节提供 [《从启动到每一帧：Waylith 怎样驱动 RimWorld�
 
 定义、XML 与内容组织分为两篇，入口见 [Def 框架目录](chapters/03-def-framework/README.md)：《XML 与 Def 结构》提供 [发布版 v1.0](chapters/03-def-framework/01-xml-and-def-structure-release.md) 与 [完整解析版 v1.0](chapters/03-def-framework/01-xml-and-def-structure.md)，于 2026-10-28 定稿，保留完整巨弓定义、选取类型的样例与字段对照，发布版仅删除精确定位。《Def 的加载、存储与查询》提供 [发布版 v1.0](chapters/03-def-framework/02-def-loading-storage-query-release.md) 与 [完整解析版 v1.0](chapters/03-def-framework/02-def-loading-storage-query.md)，于 2026-11-02 定稿，按流程解释主线对象、源码执行与数据变化，以研究速度和教学补丁贯穿案例；发布版压缩实现细节，保留必要代码和配图，移除外链与精确定位。两篇的整合草稿与研究笔记继续保留，入口见 [模块大纲](29-def-xml-outline.md)。
 
-实际 Thing 创建、组件初始化、耐久与品质状态及属性计算留到物品模块；已有的 [长剑创建研究](42-thingmaker-and-instance-state.md) 作为该模块预备笔记保留。线程、协程与游戏 tick 的详细研究保留到后续执行与时间调度部分，结合具体调用继续展开。
+实际 Thing 创建、组件初始化、耐久与品质状态及属性计算留到物品模块；已有的 [长剑创建研究](42-thingmaker-and-instance-state.md) 作为该模块预备笔记保留。
+
+下一组的 [游戏运行与调度大纲 v0.11](44-runtime-scheduling-outline.md) 于 2026-11-03 开始逐段阅读，按“主线程更新与游戏时间”“长任务与线程协作”“协程的分段执行”三篇组织。首轮 [从场景入口到 Game.UpdatePlay](45-game-update-entry.md) 回接 Root、Current 与 Game 的关系，解释共享更新、游玩帧分派及暂停时的调用顺序；随后 [TickManager 的时间与循环](46-tickmanager-time-scheduling.md) 展开速度换算、时间余额和本帧推进限制，再由 [DoSingleTick 与 TickList](47-single-tick-and-ticklists.md) 接通单次模拟分派、对象登记和分组轮换。[速度控制与实际推进](48-time-controls-and-simulation-speed.md) 已回接玩家输入、暂停与强制正常速度，并用帧频案例和显示公式解释推进节奏。
+
+长任务部分已于 2026-11-04 从 [自动存档的排队与同步执行](49-long-event-queue-and-synchronous-save.md) 接到 LongEventHandler 的任务记录、显示等待、主线程执行与清理；随后 [异步长任务与后续函数](50-asynchronous-long-events.md) 追踪线程建立、状态文字、结束检查、函数列表与可选场景交接，再由 [迭代器长任务](51-iterator-long-events.md) 展开进度保存、时间检查和跨更新推进。[XML 并行读取](52-parallel-xml-reading.md) 于 2026-11-06 接到两个读取线程与调用方共同取文件、按下标写回和 Join 等待，再由 [线程池批次与完成等待](53-threadpool-batches-and-completion.md) 展开交叉引用解析中的批次、计数、通知及返回后的处理。[加载完成后的主线程交接](54-loading-main-thread-handoff.md) 已接到后续函数列表、静态初始化与界面任务，并以整体图串起各线程的等待与继续位置。下一步进入 CoroutineScheduler 的记录与调度。

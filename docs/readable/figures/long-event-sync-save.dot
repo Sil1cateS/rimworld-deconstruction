@@ -1,0 +1,26 @@
+// Render fixed positions with: neato -n2 -Tpng long-event-sync-save.dot -o long-event-sync-save.png
+digraph LongEventSyncSave {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.26", fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="自动存档：在主线程上跨几次调用完成"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.13", width=4.4, height=0.95, penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  left [pos="240,1370!", shape=plain, style="", fontsize=17, label="更新调用位置"];
+  right [pos="790,1370!", shape=plain, style="", fontsize=17, label="界面绘制调用位置"];
+  queue [pos="240,1250!", label="游玩 tick 达到存档间隔\nQueueLongEvent 将记录入队\nForcePause 开始要求暂停模拟"];
+  select [pos="240,1070!", label="后续 Root.Update\nLongEventsUpdate 出队，设为 currentEvent\n准备提示文字，本次只选中任务", fillcolor="#fff3d8", color="#cfb579"];
+  gui [pos="790,1070!", label="后续 Root.OnGUI\nLongEventsOnGUI 安排状态窗口"];
+  mark [pos="790,880!", label="内容绘制函数处理 repaint\nalreadyDisplayed = true", fillcolor="#e8f4ed", color="#a5cbb8"];
+  check [pos="240,880!", label="再一次 Root.Update\n进入同步执行方法\n检查 ShouldWaitUntilDisplayed"];
+  save [pos="240,690!", label="通过检查，直接调用 eventAction\n进入 DoAutosave → SaveGame\n主线程执行主体，直到方法返回", fillcolor="#fff3d8", color="#cfb579"];
+  clear [pos="240,500!", label="清空 currentEvent 等引用\n执行后续函数列表与非空 callback\n队列为空时，ForcePause 解除", fillcolor="#e8f4ed", color="#a5cbb8"];
+  resume [pos="240,310!", label="返回外层更新\n按玩家选择与其他条件继续游戏", fillcolor="#f0eafa", color="#b5a1d1"];
+  pending [pos="790,665!", width=4.4, height=1.35, fillcolor="#f8f9fb", color="#bdc9d2", label="若尚未取得绘制标记\n同步方法先返回\n后续更新再次检查\n这时模拟仍处于暂停状态"];
+  queue:s -> select:n [label="后续更新"];
+  select:e -> gui:w [label="后续界面调用"];
+  gui:s -> mark:n;
+  mark:w -> check:e [label="后续更新读取标记"];
+  check:s -> save:n [label="已取得绘制标记"];
+  check:se -> pending:nw [style=dashed, arrowhead=none, label="尚未取得时"];
+  save:s -> clear:n;
+  clear:s -> resume:n;
+  note [pos="515,120!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="左右两栏均在主线程上；按无其他任务、普通界面可用的正常保存路径绘制。\nrepaint 标记来自界面内容绘制函数；存档内部的数据写入另行研究。"];
+}
