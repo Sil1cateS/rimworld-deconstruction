@@ -179,8 +179,8 @@
 <!-- legend -->
 <g id="node14" class="node">
 <title>legend</title>
-<text text-anchor="middle" x="506" y="-20.1" font-family="Microsoft YaHei" font-size="12.00" fill="#526d85">上方箭头表示状态来源，下方表示 TickManagerUpdate 的检查顺序；省略输入拒绝细节与调试分支。</text>
-<text text-anchor="middle" x="506" y="-4.35" font-family="Microsoft YaHei" font-size="12.00" fill="#526d85">强制正常速度生效期间，curTimeSpeed 保留原选择；游戏计数到达截止 tick 后，倍率重新按该选择计算。</text>
+<text text-anchor="middle" x="506" y="-20.1" font-family="Microsoft YaHei" font-size="12.00" fill="#526d85">上方箭头表示状态来源，下方表示 TickManagerUpdate 的检查顺序。</text>
+<text text-anchor="middle" x="506" y="-4.35" font-family="Microsoft YaHei" font-size="12.00" fill="#526d85">帧内沿用进入循环前取得的倍率和步长。到达减速截止 tick 后，下一次安排推进时重新取值。</text>
 </g>
 </g>
 </svg>

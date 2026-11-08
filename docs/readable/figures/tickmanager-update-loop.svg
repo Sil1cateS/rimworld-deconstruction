@@ -102,9 +102,9 @@
 <!-- limit -->
 <g id="node7" class="node">
 <title>limit</title>
-<polygon fill="#fff3d8" stroke="#cfb579" stroke-width="1.2" points="280.04,-334.75 93.24,-280.75 280.04,-226.75 466.84,-280.75 280.04,-334.75"/>
+<polygon fill="#fff3d8" stroke="#cfb579" stroke-width="1.2" points="280.04,-334.75 102.75,-280.75 280.04,-226.75 457.32,-280.75 280.04,-334.75"/>
 <text text-anchor="middle" x="280.04" y="-286.75" font-family="Microsoft YaHei" font-size="15.00" fill="#17324d">已经暂停</text>
-<text text-anchor="middle" x="280.04" y="-266.5" font-family="Microsoft YaHei" font-size="15.00" fill="#17324d">或累计耗时 &gt; 约 45.45 ms？</text>
+<text text-anchor="middle" x="280.04" y="-266.5" font-family="Microsoft YaHei" font-size="15.00" fill="#17324d">或累计耗时读数 ≥ 46 ms？</text>
 </g>
 <!-- tick&#45;&gt;limit -->
 <g id="edge11" class="edge">
@@ -116,15 +116,15 @@
 <!-- limit&#45;&gt;loop_bottom -->
 <g id="edge12" class="edge">
 <title>limit:w&#45;&gt;loop_bottom</title>
-<path fill="none" stroke="#526d85" stroke-width="1.3" d="M91.04,-280.75C91.04,-280.75 5.63,-280.75 0.3,-280.75"/>
-<text text-anchor="middle" x="39.67" y="-285.1" font-family="Microsoft YaHei" font-size="12.00" fill="#415b73">否</text>
+<path fill="none" stroke="#526d85" stroke-width="1.3" d="M101.04,-280.75C101.04,-280.75 6.25,-280.75 0.33,-280.75"/>
+<text text-anchor="middle" x="44.68" y="-285.1" font-family="Microsoft YaHei" font-size="12.00" fill="#415b73">否</text>
 </g>
 <!-- break_right -->
 <!-- limit&#45;&gt;break_right -->
 <g id="edge15" class="edge">
 <title>limit:e&#45;&gt;break_right</title>
-<path fill="none" stroke="#526d85" stroke-width="1.3" d="M469.04,-280.75C469.04,-280.75 756.09,-280.75 769.55,-280.75"/>
-<text text-anchor="middle" x="591.17" y="-285.1" font-family="Microsoft YaHei" font-size="12.00" fill="#415b73">是：break</text>
+<path fill="none" stroke="#526d85" stroke-width="1.3" d="M459.04,-280.75C459.04,-280.75 755.63,-280.75 769.53,-280.75"/>
+<text text-anchor="middle" x="586.16" y="-285.1" font-family="Microsoft YaHei" font-size="12.00" fill="#415b73">是：break</text>
 </g>
 <!-- clear -->
 <g id="node8" class="node">

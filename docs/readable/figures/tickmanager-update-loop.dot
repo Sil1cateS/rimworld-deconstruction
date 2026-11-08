@@ -9,7 +9,7 @@ digraph TickManagerUpdate {
   clock [pos="310,735!", label="取得 tickRateMultiplier\n重置并启动 clock"];
   loop [pos="310,600!", shape=diamond, style=filled, width=4.1, height=1.55, label="余额 > 0\n且本帧步数 < 倍率 × 2？", fillcolor="#fff3d8", color="#cfb579"];
   tick [pos="310,450!", height=1.15, label="调用一次 DoSingleTick\n扣除 curTimePerTick，本帧步数加 1\n记录单步耗时"];
-  limit [pos="310,295!", shape=diamond, style=filled, width=3.9, height=1.5, label="已经暂停\n或累计耗时 > 约 45.45 ms？", fillcolor="#fff3d8", color="#cfb579"];
+  limit [pos="310,295!", shape=diamond, style=filled, width=3.9, height=1.5, label="已经暂停\n或累计耗时读数 ≥ 46 ms？", fillcolor="#fff3d8", color="#cfb579"];
   clear [pos="800,450!", width=3.65, height=1.05, label="结束循环后处理余额\n若为正值则清零\n零值和负值保留", fillcolor="#e8f4ed", color="#a5cbb8"];
   end [pos="800,150!", width=3.65, height=0.9, label="返回 Game.UpdatePlay\n继续后面的帧级调用", fillcolor="#f0eafa", color="#b5a1d1"];
   node [shape=point, width=0.001, height=0.001, label="", style=invis];

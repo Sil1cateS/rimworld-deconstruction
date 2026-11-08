@@ -1,0 +1,35 @@
+// Render fixed positions with: neato -n2 -Tpng coroutine-step-wait-checks.dot -o coroutine-step-wait-checks.png
+digraph CoroutineStepWaitChecks {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.3", fontname="Microsoft YaHei", fontsize=23, fontcolor="#17324d", labelloc=t, label="一次 Step：检查记录副本，符合条件时继续执行"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", margin="0.2,0.14", width=4.5, height=0.9, penwidth=1.3];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=13, fontcolor="#415b73", arrowsize=0.8, penwidth=1.4];
+  entry [pos="370,1500!", label="进入 Step\n取得阶段参数与累计时间 elapsed", fillcolor="#f0eafa", color="#b5a1d1"];
+  copy [pos="370,1360!", label="清空 _scratch\n从 _handles 复制当前记录引用"];
+  next [pos="370,1180!", shape=diamond, style=filled, width=3.5, height=1.25, label="副本中还有\n下一条记录？", fillcolor="#fff3d8", color="#cfb579"];
+  cleanup [pos="1000,1180!", label="遍历结束\n_handles.RemoveAll(h => h.IsDone)\n移除完成或停止的记录，返回", fillcolor="#e8f4ed", color="#a5cbb8"];
+  active [pos="370,970!", shape=diamond, style=filled, width=3.5, height=1.25, label="当前记录的\nIsDone 为 false？", fillcolor="#fff3d8", color="#cfb579"];
+  check [pos="370,770!", label="读取 SuspendKind\n按阶段、截止时间或目标状态\n计算本次是否可以继续：flag"];
+  eligible [pos="370,570!", shape=diamond, style=filled, width=3.5, height=1.1, label="flag 为 true？", fillcolor="#fff3d8", color="#cfb579"];
+  advance [pos="370,370!", label="调用一次 Advance\n执行具体过程，更新等待状态\n或把 IsDone 设为 true", fillcolor="#e8f4ed", color="#a5cbb8"];
+  skip [pos="1000,770!", label="本次跳过这条记录"];
+  after [pos="1000,370!", label="当前记录检查结束\n继续副本中的下一条"];
+  bottom [pos="1000,210!", shape=point, width=0.001, height=0.001, label="", style=invis];
+  leftbottom [pos="50,210!", shape=point, width=0.001, height=0.001, label="", style=invis];
+  lefttop [pos="50,1180!", shape=point, width=0.001, height=0.001, label="", style=invis];
+  note [pos="680,60!", shape=plain, style="", fontsize=13, fontcolor="#526d85", label="副本保存同一批记录的引用，字段变化仍能被后面的检查读到。\n本次每条记录至多调用一次 Advance；新登记的记录等后续一轮检查。"];
+  entry:s -> copy:n;
+  copy:s -> next:n;
+  next:s -> active:n [label="是：取出一条"];
+  next:e -> cleanup:w [label="否"];
+  active:s -> check:n [label="是"];
+  active:e -> skip:n [label="否"];
+  check:s -> eligible:n;
+  eligible:s -> advance:n [label="是"];
+  eligible:e -> skip:s [label="否"];
+  advance:e -> after:w;
+  skip:s -> after:n;
+  after:s -> bottom [arrowhead=none];
+  bottom -> leftbottom [arrowhead=none];
+  leftbottom -> lefttop [arrowhead=none];
+  lefttop -> next:w;
+}

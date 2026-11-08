@@ -1,6 +1,6 @@
 # 游戏运行与调度：帧、tick、长任务、线程与协程（大纲）
 
-状态：讨论大纲 v0.11，2026-11-06 已接通加载结束后的主线程工作与整体线程交接。依据工作区 RimWorld 1.7.4982 rev1280 的代码与兼容层整理。当前按三篇组织，后续结合逐段阅读调整内容与拆篇。
+讨论大纲 v0.15，依据工作区 RimWorld 1.7.4982 rev1280 的代码与兼容层整理。第四章已定稿，第五、六章处于整合草稿阶段。阅读入口见 [三章目录](chapters/04-06-runtime-scheduling.md)，本文件保留研究范围与逐段阅读进度。
 
 这一组围绕游戏怎样安排执行展开：每帧调用哪些工作、模拟时间怎样推进、耗时操作交给谁、等待以后由谁继续执行。“游戏运行流程”从 Root 和 Game 接下去，线程协作与协程分别在实际调用位置展开。
 
@@ -26,15 +26,23 @@
 
 随后阅读 [线程池批次与完成等待](53-threadpool-batches-and-completion.md)：从交叉引用解析进入 GenThreading.ParallelForEach，展开列表切分、线程池工作项、按批累计完成量和通知后的重新检查，再接回 Apply 与成功记录移除。
 
-接着回到 [加载结束后的主线程交接](54-loading-main-thread-handoff.md)：从实际登记的函数追到 IsAlive 检查、后续函数列表的执行与下一项界面初始化，再接回引擎帧顺序。整体图已串起主线程、长任务线程、读取线程及线程池工作项，长任务与两个并行案例的主线素材已接通。下一步进入协程记录与调度。
+接着回到 [加载结束后的主线程交接](54-loading-main-thread-handoff.md)：从实际登记的函数追到 IsAlive 检查、后续函数列表的执行与下一项界面初始化，再接回引擎帧顺序。整体图已串起主线程、长任务线程、读取线程及线程池工作项，长任务与两个并行案例的主线素材已接通。
+
+协程部分从 [记录与第一次执行](55-coroutine-records-and-first-advance.md) 开始：认识 IEnumerator、Coroutine 和 CoroutineHandle，追踪 StartCoroutine 的包装、Start 的登记及立即推进，再通过 null 等待和子迭代器案例解释进度保存、压栈与弹栈。
+
+随后阅读 [帧阶段与等待条件检查](56-coroutine-phases-and-wait-checks.md)：由 EnsureSubscribed 接到 UnityWorld 的事件顺序，展开 Step 的记录副本、阶段选择、时间与完成条件，并用同帧恢复及等待顺序案例解释实际执行位置，再接通引擎的帧末调用。
+
+接着进入 [自定义等待与协程结束](57-custom-yield-and-coroutine-ending.md)：沿 CustomYieldInstruction 的子迭代器连接，展开 WaitUntil 与真实计时等待，再追踪 Stop、StopAll、组件停用和对象销毁，核对列表移除及 finally 的实际执行。
+
+2026-11-07 将这些材料整理为 tick、线程与协程三章。2026-11-08 [第四章 tick](chapters/04-tick/README.md) 定稿，提供发布版与完整解析版 v1.0。[第五章线程](chapters/05-threads/draft.md) 与 [第六章协程](chapters/06-coroutines/draft.md) 仍供共同审读。
 
 ## 一、这一组要建立的整体结构
 
-| 拟定文章 | 主要问题 | 承接与交接 |
+| 整合章节 | 主要问题 | 承接与交接 |
 | --- | --- | --- |
-| 第一篇：主线程更新与游戏时间 | 一帧怎样进入游戏，一帧执行多少个 tick，一个 tick 怎样分派工作 | 从 UnityRuntime.Step 接到 Root、Game、TickManager，停在各系统的调用入口 |
-| 第二篇：长任务与线程协作 | 耗时任务怎样排队、执行、等待、完成；并行工作怎样交回结果 | 接回定义加载中的 LongEventHandler、文件读取线程和并行处理，再追踪后续执行 |
-| 第三篇：协程的分段执行 | IEnumerator 的进度由谁保存，yield 后何时恢复，停止后怎样处理记录 | 接回 UnityWorld 的帧阶段，展开 CoroutineScheduler 的记录与判断 |
+| 第四章：tick 与游戏时间 | 一帧怎样进入游戏，一帧执行多少个 tick，一个 tick 怎样分派工作 | 从 UnityRuntime.Step 接到 Root、Game、TickManager，停在各系统的调用入口 |
+| 第五章：线程与长任务协作 | 耗时任务怎样排队、执行、等待、完成；并行工作怎样交回结果 | 接回定义加载中的 LongEventHandler、文件读取线程和并行处理，再追踪后续执行 |
+| 第六章：协程的分段执行 | IEnumerator 的进度由谁保存，yield 后何时恢复，停止后怎样处理记录 | 接回 UnityWorld 的帧阶段，展开 CoroutineScheduler 的记录与判断 |
 
 先建立一张运行总图，以游戏进程为外框，标出主线程、渲染线程，以及案例实际使用的后台和工作线程；再在主线程中标出帧阶段、游玩更新、tick 循环、长任务检查与协程推进位置。线程之间另用时序图表示工作交接和等待，图中的调用顺序与并行关系分别说明。
 

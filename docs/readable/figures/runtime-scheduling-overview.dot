@@ -1,0 +1,25 @@
+// Render with neato -n2. The dashed edge expands work inside a single stage.
+digraph RuntimeSchedulingOverview {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.26", fontname="Microsoft YaHei", fontsize=23, fontcolor="#17324d", labelloc=t, label="一帧中的游戏调度"];
+  node [shape=box, style="rounded,filled", width=4.55, height=0.85, margin="0.18,0.13", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=13, fontcolor="#415b73", arrowsize=0.8, penwidth=1.3];
+  frameLabel [pos="230,870!", shape=plain, style="", fontsize=17, label="主线程的帧顺序"];
+  playLabel [pos="730,570!", shape=plain, style="", fontsize=17, label="组件 Update 中的游玩入口"];
+  begin [pos="230,775!", label="UnityRuntime.Step\n写入本帧时间，进入 UnityWorld"];
+  pre [pos="230,650!", label="Updating\n检查等待 FixedUpdate 的协程", fillcolor="#e8f4ed", color="#a5cbb8"];
+  update [pos="230,525!", label="调用活动组件的 Update\n其中包括 Root_Play"];
+  post [pos="230,400!", label="PostUpdate\n检查普通等待的协程", fillcolor="#e8f4ed", color="#a5cbb8"];
+  late [pos="230,275!", label="LateUpdate 与 PostLateUpdate\n留下帧末检查标记", fillcolor="#e8f4ed", color="#a5cbb8"];
+  end [pos="230,150!", label="渲染帧入队后\n主线程检查帧末等待", fillcolor="#e8f4ed", color="#a5cbb8"];
+  root [pos="730,492!", label="Root.Update 先推进长任务\n主线程执行同步或分段任务\n异步任务交给后台线程", fillcolor="#fff3d8", color="#cfb579"];
+  game [pos="730,315!", label="Game.UpdatePlay\nTickManager 按时间与速度安排本帧 tick", fillcolor="#f0eafa", color="#b5a1d1"];
+  work [pos="730,150!", label="逐步更新地图、对象和世界\n推进结束后继续本帧的各项更新", fillcolor="#f0eafa", color="#b5a1d1"];
+  begin:s -> pre:n;
+  pre:s -> update:n;
+  update:s -> post:n;
+  post:s -> late:n;
+  late:s -> end:n;
+  update:e -> root:w [style=dashed, arrowhead=none];
+  root:s -> game:n [label="允许继续游玩时"];
+  game:s -> work:n;
+}

@@ -1,0 +1,23 @@
+// Render fixed positions with: neato -n2 -Tpng custom-yield-condition-loop.dot -o custom-yield-condition-loop.png
+digraph CustomYieldConditionLoop {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.3", fontname="Microsoft YaHei", fontsize=23, fontcolor="#17324d", labelloc=t, label="自定义等待：推进栈顶，检查是否还需等待"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", margin="0.2,0.14", width=4.6, height=0.95, penwidth=1.3];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=13, fontcolor="#415b73", arrowsize=0.8, penwidth=1.4];
+  parent [pos="350,1250!", label="父过程 yield 返回\n一个 CustomYieldInstruction 对象", fillcolor="#f0eafa", color="#b5a1d1"];
+  push [pos="350,1100!", label="Advance 按 IEnumerator 识别\n将等待对象压入 Stack\n栈顶成为这个子迭代器"];
+  move [pos="350,900!", label="对子迭代器调用 MoveNext\n读取 keepWaiting"];
+  condition [pos="350,700!", shape=diamond, style=filled, width=3.7, height=1.3, label="keepWaiting\n返回 true？", fillcolor="#fff3d8", color="#cfb579"];
+  wait [pos="950,700!", label="MoveNext 返回 true\nCurrent 为 null，写入 NextFrame\nAdvance 返回，保留父与子进度"];
+  step [pos="950,900!", label="后续普通 Step 允许继续\n调用 Advance\n再次取得同一个栈顶对象"];
+  pop [pos="350,480!", label="MoveNext 返回 false\nPop 移除等待对象\n栈顶重新成为父过程", fillcolor="#e8f4ed", color="#a5cbb8"];
+  resume [pos="350,300!", label="同一次 Advance 继续父过程\n执行到下一次等待或结束", fillcolor="#e8f4ed", color="#a5cbb8"];
+  note [pos="650,130!", shape=plain, style="", fontsize=13, fontcolor="#526d85", label="图示为正常等待路径。第一次压栈就会开始检查条件；\n条件满足后，子过程弹栈与父过程继续发生在同一次 Advance 中。"];
+  parent:s -> push:n;
+  push:s -> move:n;
+  move:s -> condition:n;
+  condition:e -> wait:w [label="是：还要等待"];
+  wait:n -> step:s;
+  step:w -> move:e;
+  condition:s -> pop:n [label="否：等待结束"];
+  pop:s -> resume:n;
+}

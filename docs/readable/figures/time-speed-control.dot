@@ -30,5 +30,5 @@ digraph TimeSpeedControl {
   normal:se -> chosen:n [label="否"];
   rate1:s -> loop:nw;
   chosen:s -> loop:ne;
-  legend [pos="570,70!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="上方箭头表示状态来源，下方表示 TickManagerUpdate 的检查顺序；省略输入拒绝细节与调试分支。\n强制正常速度生效期间，curTimeSpeed 保留原选择；游戏计数到达截止 tick 后，倍率重新按该选择计算。"];
+  legend [pos="570,70!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="上方箭头表示状态来源，下方表示 TickManagerUpdate 的检查顺序。\n帧内沿用进入循环前取得的倍率和步长。到达减速截止 tick 后，下一次安排推进时重新取值。"];
 }
