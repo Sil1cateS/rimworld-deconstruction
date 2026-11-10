@@ -1,0 +1,25 @@
+// Render fixed positions with: neato -n2 -Tpng long-event-sync-flow.dot -o long-event-sync-flow.png
+digraph LongEventSyncFlow {
+  graph [layout=neato, overlap=true, splines=polyline, bgcolor="white", pad="0.28", fontname="Microsoft YaHei", fontsize=21, fontcolor="#17324d", labelloc=t, label="同步长任务的等待、执行与收尾"];
+  node [shape=box, style="rounded,filled", fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", margin="0.18,0.13", width=4.7, height=0.9, penwidth=1.2];
+  edge [color="#526d85", fontname="Microsoft YaHei", fontsize=12, fontcolor="#415b73", arrowsize=0.75, penwidth=1.3];
+  main [pos="300,1190!", shape=plain, style="", fontsize=18, label="主线程"];
+  entry [pos="300,1060!", label="Root.Update → LongEventsUpdate\n推进已经选中的同步任务"];
+  check [pos="300,875!", shape=diamond, style=filled, width=3.9, height=1.35, label="还需等待提示绘制？\nShouldWaitUntilDisplayed", fillcolor="#fff3d8", color="#cfb579"];
+  wait [pos="850,875!", label="本次推进先返回\n保留 currentEvent", fillcolor="#f0eafa", color="#b5a1d1"];
+  repaint [pos="850,670!", label="后续界面绘制处理 repaint\n将 alreadyDisplayed 设为 true", fillcolor="#e8f4ed", color="#a5cbb8"];
+  body [pos="300,670!", height=1.05, label="直接调用非空的 eventAction\n本次更新等主体返回后才继续", fillcolor="#fff3d8", color="#cfb579"];
+  scene [pos="300,500!", label="若指定了场景，调用 LoadScene\n并通过 sceneChanged 通知调用方"];
+  finish [pos="300,325!", height=1.16, label="保存 callback，清空当前任务等引用\n依次执行后续函数列表\n和非空的 callback", fillcolor="#e8f4ed", color="#a5cbb8"];
+  next [pos="300,145!", height=1.1, label="回到 LongEventsUpdate\n有排队任务时可选出下一项\n后续调用再推进它", fillcolor="#f0eafa", color="#b5a1d1"];
+  entry:s -> check:n;
+  check:e -> wait:w [label="需要"];
+  wait:s -> repaint:n [label="界面绘制获得机会"];
+  repaint:w -> check:se [style=dashed];
+  check:s -> body:n [label="可以执行"];
+  body:s -> scene:n;
+  scene:s -> finish:n;
+  finish:s -> next:n;
+  recheck [pos="610,741!", shape=plain, style="", fontsize=12, fontcolor="#415b73", label="后续更新再检查"];
+  note [pos="575,27!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="两侧都在主线程上。取得绘制标记前，后续更新可以继续等待。\n图示为正常路径，异常处理见正文。"];
+}

@@ -355,7 +355,11 @@ public void TickManagerUpdate()
 
 ### 4.1 高频画面帧怎样安排模拟步
 
-假设正常速度、初始余额为零、稳定约 120 FPS，且每步执行很快。每帧约加入 8.333 毫秒：
+正常启动图形界面时，`Root.CheckGlobalInit` 根据引擎报告的显示刷新率设置 `Application.targetFrameRate`。这个值会传给 Waylith 的 `EngineWindow.TargetFrameRate`，主循环提前做完一帧时，会按这个目标补足等待时间。如果启动时读到 60 Hz，目标就是 60 FPS。
+
+在稳定的 60 FPS 下，Normal 档的帧间隔和每步间隔都约为 16.667 毫秒。从零余额开始，每帧按一步的间隔入账，再扣掉同样的时间，通常一帧走一步。
+
+下面再看帧率目标和实际运行都能达到 120 FPS 的情形。仍用 Normal 档，从零余额开始，假设每步执行很快。每帧约加入 8.333 毫秒。
 
 | 帧 | 入账后的余额 | 执行步数 | 扣除后的余额 |
 | --- | --- | --- | --- |
@@ -368,11 +372,13 @@ while 只要求余额大于零，所以不足一步也会先执行，再留下�
 
 ### 4.2 较长帧间隔怎样受到数量限制
 
-正常速度下，假设本帧入账 100 毫秒，每步仅花 1 毫秒。循环最多执行两步，剩下约 66.667 毫秒正余额清零，下一帧从零重新入账。Fast 则每帧最多六步。
+假设进入这一帧前余额是零，两次帧时间采样相隔 100 毫秒，游戏在 Normal 档且期间没有暂停。100 毫秒是本帧拿到的时间，另假设每次 `DoSingleTick` 实际只花约 1 毫秒，循环的其他开销也很小。即使目标帧率为 60，遇到卡顿时两次采样仍可能相隔这么久。
+
+Normal 的倍率是 1，循环要求 `ticksThisFrame < tickRateMultiplier * 2f`。跑完两步后，已完成步数为 2，下一次判断时 `2 < 2` 不成立，所以循环在这里停下。每步按目标节奏扣掉 `1000 / 60` 毫秒，余额还剩 `100 − 2 × (1000 / 60) ≈ 66.667` 毫秒。循环退出后，这笔正余额被清零。
 
 因此，较长帧间隔带来的工作量会受到本帧数量与耗时检查约束。需要理解“加速后实际有多快”时，必须接着统计真正完成的步数。
 
-源码定位：完整循环与退出（`Verse.TickManager.cs:375`）、时间接口（`UnityEngine.Time.cs:12`）、时间写入（`Waylith.UnityCompat.UnityTimeState.cs:55`）。
+源码定位：完整循环与退出（`Verse.TickManager.cs:375`）、时间接口（`UnityEngine.Time.cs:12`）、时间写入（`Waylith.UnityCompat.UnityTimeState.cs:55`）、设置目标帧率（`Verse.Root.cs:98`）、主循环等待（`Waylith.EngineApplication.cs:1521`）。
 
 ## 五、把一次 tick 分派给地图和全局系统
 
@@ -530,7 +536,8 @@ for (int m = 0; m < list2.Count; m++)
 
 | 帧频与速度 | 平均每帧推进量 | 约每秒完成量 |
 | --- | --- | --- |
-| 120 FPS，Normal | 0.5 tick | 60 tick |
+| 60 FPS，Normal | 1 tick | 60 tick |
+| 120 FPS，Normal（目标允许时） | 0.5 tick | 60 tick |
 | 60 FPS，Fast | 3 tick | 180 tick |
 | 30 FPS，Fast | 6 tick | 180 tick |
 | 20 FPS，Fast | 6 tick，达到数量上限 | 120 tick |
