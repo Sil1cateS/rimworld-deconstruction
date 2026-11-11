@@ -8,7 +8,7 @@
 
 ## 协程运行总览
 
-调用者把一个 `IEnumerator` 交给 `CoroutineScheduler`。迭代器保存代码执行到了哪里，管理器用 `CoroutineHandle` 保存所属对象、迭代器栈以及再次执行的条件。每次推进都从栈顶开始，直到需要等待或整个过程结束。
+调用者把一个 `IEnumerator` 交给 `CoroutineScheduler`。迭代器保存代码执行到了哪里，管理器用 `CoroutineHandle` 保存所属对象、迭代器栈以及再次执行的条件。首次推进在调用者所在的线程上执行，后续推进沿主线程的帧阶段进行。每次推进都从栈顶开始，直到需要等待或整个过程结束。
 
 | 环节 | 主要处理过程 | 完成后的结果 |
 | --- | --- | --- |
@@ -40,7 +40,7 @@ private IEnumerator Example()
 }
 ```
 
-同一组件中，另一段代码可以这样启动它。StartCoroutine 返回一个 Coroutine 对象，供调用者保存：
+同一组件中，另一段代码可以这样启动它。`routine` 是 `Example()` 返回的迭代器，`coroutine` 保存 `StartCoroutine` 返回的对象，后面可以用它等待或停止这条协程。
 
 ```csharp
 IEnumerator routine = Example();
@@ -96,7 +96,7 @@ CoroutineSuspendKind 包含 NextFrame、FixedUpdate、EndOfFrame、WaitSeconds�
 
 ## 三、登记记录，并立即推进第一段
 
-MonoBehaviour.StartCoroutine 接收 routine，把 this 作为 owner 传给管理器，再将内部记录包装为 Coroutine：
+`MonoBehaviour.StartCoroutine` 接收 `routine`，把当前组件 `this` 作为 `owner` 传给管理器。局部变量 `coroutineHandle` 保存返回的内部记录，再通过 `Handle` 放进交给调用者的 `Coroutine` 对象。
 
 ```csharp
 public Coroutine StartCoroutine(IEnumerator routine)
@@ -126,7 +126,7 @@ internal static CoroutineHandle Start(object owner, IEnumerator routine)
 }
 ```
 
-因此，第一次等待以前的代码在 StartCoroutine 返回以前执行。如果迭代直接结束，返回对象所引用的记录也可能已经完成。Time.time 提供这次推进使用的累计时间。
+`StartCoroutine` 返回以前，首次 `Advance` 已经执行到需要交回调度的位置。这一步也可能顺势执行子迭代器，或直接运行到整个协程结束。`Time.time` 提供这次推进使用的本帧累计时间。
 
 ### 把后续检查登记到 World
 
@@ -145,7 +145,7 @@ CoroutineScheduler._subscribed = true;
 | PostUpdate | StepPostUpdate | 普通等待检查 |
 | PostLateUpdate | StepEndOfFrame | 执行帧末检查，或先留下待处理标记 |
 
-若当时还没有 World，登记尝试直接返回，Start 仍会建立记录并推进一次；后续恢复需要阶段函数成功接入。在本章的正常运行案例中，当前 World 已经存在。
+如果首次启动协程时还没有 `World`，`Start` 仍会建立记录并推进一次。等以后再有 `Start` 调用时，管理器会重新尝试订阅。订阅成功后，已有记录才能随相应帧阶段继续。
 
 源码定位：启动与立即推进（`UnityEngine.CoroutineScheduler.cs:15`）、登记（`UnityEngine.CoroutineScheduler.cs:50`）、组件包装入口（`UnityEngine.MonoBehaviour.cs:19`）。
 
@@ -169,7 +169,7 @@ if (obj == null)
 }
 ```
 
-第一节的 Example 先输出 A，Current 为 null，于是记录 NextFrame 并返回，routine 仍在栈中。下一次推进从 yield 后面继续。栈全部清空后，Advance 将 IsDone 设为 true；MoveNext 抛出异常时，周围 catch 记录错误并标记结束。
+第一节的 `Example` 先输出 A，`Current` 为 `null`，于是记录 `NextFrame` 并返回，`routine` 仍在栈中。下一次推进从 `yield` 后面继续。栈全部清空后，`Advance` 将 `IsDone` 设为 `true`。如果 `MoveNext` 抛出异常，`catch` 会记录错误并标记结束。读取 `Current` 在这段 `try` 之后，属性读取抛出的异常会传给外层调用者。
 
 ### 4.1 先压入子过程，再继续父过程
 
@@ -236,7 +236,7 @@ private IEnumerator Inner()
 
 Step 接收 endOfFrame、elapsed、fixedUpdate 三个参数：分别表示是否检查帧末类别、本次累计时间，以及是否检查 FixedUpdate 类别。fixedUpdate 默认 false。
 
-World 的 Updating 在组件 Update 以前调用，PostUpdate 在组件 Update 以后调用。两个入口分别传入下列参数，frame 是本帧的 UnityFrame：
+`UnityWorld.Update` 先处理待销毁、激活与 `Start`，再依次调用 `Updating`、活动组件的 `Update` 和 `PostUpdate`。这里的 `frame` 是本次传入的 `UnityFrame`，`frame.ElapsedTime` 保存引擎传来的本帧累计时间。两个阶段传入的布尔值决定要检查哪类等待。
 
 ```csharp
 private static void StepPreUpdate(UnityFrame frame)
@@ -251,6 +251,8 @@ private static void StepPostUpdate(UnityFrame frame)
 ```
 
 下文把两个阶段布尔参数都为 false 的情况称为普通检查。一次 Step 清空 _scratch，从 _handles 复制记录引用，再逐项判断；符合条件时调用一次 Advance，最后移除 IsDone 记录。
+
+`WaitForFixedUpdate` 在此版本接到每次 `World.Update` 中的 `Updating`，也就是组件 `Update` 前的那一次检查。即使随后 `TickManager` 在这一帧执行多个模拟步，该阶段也只调用一次。
 
 coroutineHandle 是当前记录，suspendKind 是它的等待类别，flag 表示本次是否能继续。IL_00C9 是反编译标签，各分支汇合到共同检查；末尾 h 是正在判断是否移除的记录：
 
@@ -351,11 +353,11 @@ if (waitForSeconds != null)
 | 后续 PostUpdate，100.3 秒 | 时间不足，跳过 | 保留原进度 |
 | 首次达到截止值的 PostUpdate，例如 100.52 秒 | 输出 C，迭代结束 | IsDone，本轮末尾移除 |
 
-Start 使用的 Time.time 与阶段函数使用的 frame.ElapsedTime，连接到 UnityRuntime.Step 收到的同一个引擎累计时间。当前兼容层 timeScale getter 固定为 1，setter 只记录未实现提示。因此，只要引擎帧和累计时间继续前进，游戏暂停期间也能达到秒数等待的截止值。
+`Start` 使用的 `Time.time` 和阶段函数使用的 `frame.ElapsedTime` 都来自 `UnityRuntime.Step` 收到的同一个引擎时间。它在一帧开头采样，在该帧的推进中复用。兼容层的 `timeScale` 读取时固定返回 1，写入时记录未实现提示。只要引擎仍在推进帧阶段，暂停游戏模拟期间也能达到秒数等待的截止值。
 
 ### 等待另一条记录时，按实际检查顺序继续
 
-AwaitedHandle 指向的记录可能在本轮 Step 中完成。由于副本仍保存同一批引用，后面的等待者可以读到更新后的 IsDone：
+`AwaitedHandle` 指向的记录可能在本轮 `Step` 中结束。自然完成、显式停止和 `MoveNext` 异常都能把 `IsDone` 设为 `true`。由于副本仍保存同一批引用，排在后面的等待者可以读到更新后的标记。
 
 | 本轮检查顺序 | 等待者何时继续 |
 | --- | --- |
@@ -368,7 +370,7 @@ AsyncOperation 的等待则在普通检查读取 isDone，操作本身由所属�
 
 ## 七、把帧末等待接回引擎调用
 
-World.LateUpdate 在组件 LateUpdate 后进入 PostLateUpdate。EndOfFrame.DrivenByHost 为 true，表示由引擎安排后面的帧末调用。管理器的 StepEndOfFrame 读取它，决定直接检查还是先设置待处理标记：
+`World.LateUpdate` 调用组件的 `LateUpdate`，再处理待销毁对象，随后进入 `PostLateUpdate`。管理器的 `StepEndOfFrame` 读取 `EndOfFrame.DrivenByHost`。为 `true` 时先设置待处理标记，稍后由引擎触发。为 `false` 时，当场检查帧末等待。
 
 ```csharp
 private static void StepEndOfFrame(UnityFrame frame)
@@ -390,11 +392,13 @@ private static void StepEndOfFrame(UnityFrame frame)
 
 [SVG](../../figures/monobehaviour-coroutine-stages.svg) · [图源](../../figures/monobehaviour-coroutine-stages.dot)
 
-Bootstrap 的 OnUpdate 在 Step 以前也调用 EndOfFrame.Run，用于处理仍留下的标记。已清除标记时，RunPendingEndOfFrame 直接返回。
+如果某一轮仍执行 `UnityRuntime.Step`，但因窗口最小化等条件跳过帧入队，待处理标记可能留到下一次 `OnUpdate`。`Bootstrap` 会在新的 `Step` 之前调用 `EndOfFrame.Run`，在这里补做检查。标记已经清除时，`RunPendingEndOfFrame` 直接返回。
 
-这些帧末入口都沿主线程执行。FrameEnqueued 的触发位置是帧入队返回处，对应帧的渲染与 GPU 执行继续按第一章的渲染流程推进。
+常规 `Headless` 启动时，`Bootstrap` 跳过图形初始化，`DrivenByHost` 保持默认的 `false`，因此 `PostLateUpdate` 会直接执行帧末检查。
 
-源码定位：帧末标记与检查（`UnityEngine.CoroutineScheduler.cs:99`、`UnityEngine.CoroutineScheduler.cs:110`）、引擎登记（`RimWorldWaylith.Bootstrap.cs:351`）、入队事件（`Waylith.EngineApplication.cs:797`）、帧末连接（`RimWorldWaylith.Rendering.ScreenCaptureFeature.cs:130`、`UnityStubs.EndOfFrame.cs:15`）。
+这些帧末入口都在主线程上运行。图形路径上的 `FrameEnqueued` 在帧入队返回后触发。`EndOfFrame.Run` 会先处理待保存的截图，再检查待继续的协程。截图读回可能在自己的流程中等待渲染线程和设备空闲。
+
+源码定位：帧末标记与检查（`UnityEngine.CoroutineScheduler.cs:99`、`UnityEngine.CoroutineScheduler.cs:110`）、启动分支与入口（`RimWorldWaylith.Bootstrap.cs:85`、`RimWorldWaylith.Bootstrap.cs:112`、`RimWorldWaylith.Bootstrap.cs:351`）、入队事件（`Waylith.EngineApplication.cs:797`）、帧末连接与截图读回（`UnityStubs.EndOfFrame.cs:15`、`RimWorldWaylith.Rendering.ScreenCaptureFeature.cs:130`、`RimWorldWaylith.Rendering.ScreenCaptureFeature.cs:298`）。
 
 ## 八、把自定义条件放进迭代器栈
 
@@ -451,12 +455,12 @@ public class WaitUntil : CustomYieldInstruction
 }
 ```
 
-下面是组件中的教学字段与实例方法，名称为本例自行命名：
+下面另用一个组件示例。`ready` 保存条件是否已满足，`WaitUntilReady` 是本例的协程方法。
 
 ```csharp
 private bool ready;
 
-private IEnumerator Example()
+private IEnumerator WaitUntilReady()
 {
     Log.Message("开始等待");
     yield return new WaitUntil(() => ready);
@@ -464,7 +468,7 @@ private IEnumerator Example()
 }
 ```
 
-ready 为 false 时，记录保留 Example → WaitUntil 两层进度。后续普通检查再次推进子迭代器；某段代码将 ready 改为 true 后，下一次检查返回 false，子迭代器弹栈，同次 Advance 输出“条件已满足”。若初次条件就满足，首次推进也能直接继续父过程。
+`ready` 为 `false` 时，记录保留 `WaitUntilReady` 和 `WaitUntil` 两层进度。后续普通检查再次推进子迭代器。某段代码将 `ready` 改为 `true` 后，下一次检查返回 `false`，子迭代器弹栈，同次 `Advance` 输出“条件已满足”。若初次条件就满足，首次推进也能直接继续父过程。
 
 ### 8.2 用真实计时建立截止值
 
@@ -496,13 +500,13 @@ public new void Reset()
 
 一个两秒等待对象即使在真实计时 10 秒创建，到 20 秒才第一次检查时，建立的截止值仍是 22 秒。之后比较持续计时；到达时重置截止字段，结束子迭代器，再继续父过程。等待完成后重新使用该对象，首次检查可以建立新的截止值。
 
-Time.realtimeSinceStartup 从 UnityTimeState 保存的 Stopwatch 起点计算真实经过时间。到时以后，代码仍需等管理器取得推进机会。这里的 Reset 是该派生类自己声明的成员，把截止值恢复为 -1。
+`Time.realtimeSinceStartup` 每次读取都从 `UnityTimeState` 保存的 `Stopwatch` 起点计算经过时间，在同一帧内也会更新。到时以后，代码仍需等管理器取得推进机会。`this.Reset()` 调用的是派生类通过 `new` 声明的方法，将截止值恢复为 `-1`。
 
 源码定位：自定义迭代器（`UnityEngine.CustomYieldInstruction.cs:8`）、条件函数（`UnityEngine.WaitUntil.cs:6`）、真实计时等待（`UnityEngine.WaitForSecondsRealtime.cs:21`、`UnityEngine.WaitForSecondsRealtime.cs:39`）、持续计时（`Waylith.UnityCompat.UnityTimeState.cs:36`）。
 
 ## 九、停止记录，再追踪清理动作
 
-MonoBehaviour.StopCoroutine 将传入 Coroutine 的 Handle 交给管理器；StopAllCoroutines 则将 this 作为 owner 传入。管理器的完整方法如下，handle 是指定记录，coroutineHandle 是遍历中的当前记录：
+`MonoBehaviour.StopCoroutine` 将传入 `Coroutine` 的 `Handle` 交给管理器。`StopAllCoroutines` 则将调用它的组件 `this` 作为 `owner`。下面的 `handle` 是指定记录，`coroutineHandle` 是遍历中的当前记录。
 
 ```csharp
 internal static void Stop(CoroutineHandle handle)
@@ -525,25 +529,27 @@ internal static void StopAll(object owner)
 }
 ```
 
-停止接口设置 IsDone。后续 Step 跳过推进，遍历结束后移除列表项。如果在执行中的协程调用 StopAllCoroutines，本段仍沿当前函数执行到 yield、返回或异常，后面的推进由完成标记阻止。
+停止接口设置 `IsDone`。`Step` 在选择下一条要推进的记录时会跳过已标记的项，遍历结束后将它从 `_handles` 移除。
 
-StopAll 的范围取决于 Owner。例如组件 A 启动两条、B 启动一条，A 调用 StopAllCoroutines 后，只将 A 的两条记录标记结束。Stop 只处理传入记录，内嵌子迭代器随这条记录停止推进；另行启动的协程由自己的记录继续管理。
+如果协程在自己的代码里调用停止接口，已经进入的 `Advance` 仍按栈和返回对象继续处理。例如，标记自己结束后紧接着 `yield return Inner()`，`Inner` 仍会在这次 `Advance` 中压栈并开始执行。等这次 `Advance` 交回控制，后续的 `Step` 会根据 `IsDone` 跳过整条记录。
+
+`StopAll` 按 `Owner` 匹配。例如组件 A 启动两条、B 启动一条，A 调用 `StopAllCoroutines` 后，只将 A 的两条记录标记结束。`Stop` 则只标记传入的那条记录。通过 `yield return` 压入的子迭代器共用这条记录，另行通过 `StartCoroutine` 启动的过程有自己的记录。
 
 ### 9.1 沿组件状态变化检查默认调用
 
 | 动作 | World 默认处理 |
 | --- | --- |
 | enabled 设为 false | 修改 Enabled，刷新活动状态，原本活动的组件收到 OnDisable |
-| GameObject.SetActive(false) | 修改 ActiveSelf，刷新自身及子对象活动状态，受影响组件收到 OnDisable |
-| 销毁组件或 GameObject | 调用相应 OnDisable、OnDestroy，移除管理记录，发出 ObjectDestroyed |
+| GameObject.SetActive(false) | 修改 ActiveSelf，刷新自身及子对象的活动状态。由活动变为停用的 Behaviour 收到 OnDisable |
+| 销毁组件或 GameObject | 处理销毁时，活动的 Behaviour 先走 OnDisable。每个被销毁的 Behaviour 都会进入 OnDestroy 的调用入口。World 随后移除对象登记并发出 ObjectDestroyed |
 
-UnityRuntime 对 ObjectDestroyed 登记的是 Object.MarkDestroyed，用于兼容对象的销毁标记。当前默认路径没有接到管理器的 Stop 或 StopAll；Step 继续按 IsDone 与等待状态处理已有协程。
+对已经在 `World` 登记的对象，普通的 `Destroy` 先将它列为待销毁对象，再由 `World` 在帧中处理。`UnityRuntime` 为 `ObjectDestroyed` 登记了 `Object.MarkDestroyed`，给兼容层对象写入销毁标记。`Step` 检查的是协程记录自己的 `IsDone` 和等待条件。
 
 因此，沿本版本默认实现，组件停用或对象销毁以后，原记录仍可取得推进机会。具体脚本可以在 OnDisable、OnDestroy 中显式调用停止接口，将对象事件接到协程结束；分析实际行为时还需继续读脚本的方法。
 
 ### 9.2 从 finally 的输出观察结束路径
 
-管理器弹栈、移除记录时没有显式调用迭代器的 Dispose，列表移除也不会清空 Handle.Stack。调用者保留的 Coroutine 仍可引用原记录。
+管理器自然弹栈时直接移除栈顶的引用。停止后的 `Step` 只从 `_handles` 移除记录，保留其 `Stack`。`_scratch` 的引用会留到下一次 `Step` 清空副本时，调用者保留的 `Coroutine` 也仍可引用原记录。
 
 下面是教学实例方法，名称为本例自行命名：
 
@@ -586,4 +592,6 @@ UnityWorld 还有一条入口：InvokeMessage 调用约定方法以后，检查�
 
 源码定位：游戏工具类（`Delay.cs:10`、`Delay.cs:53`）、约定方法返回值（`Waylith.UnityCompat.UnityWorld.cs:1265`）、管理器连接（`Waylith.UnityCompat.UnityRuntime.cs:67`）。
 
-逐段研究材料：[记录与首次执行](../../55-coroutine-records-and-first-advance.md)、[帧阶段与条件检查](../../56-coroutine-phases-and-wait-checks.md)、[自定义等待与结束](../../57-custom-yield-and-coroutine-ending.md)。上一章：[长任务与线程协作](../05-threads/draft.md)。
+逐段研究材料：[记录与首次执行](../../55-coroutine-records-and-first-advance.md)、[帧阶段与条件检查](../../56-coroutine-phases-and-wait-checks.md)、[自定义等待与结束](../../57-custom-yield-and-coroutine-ending.md)。
+
+上一章：[长任务与线程协作](../05-threads/article.md)。

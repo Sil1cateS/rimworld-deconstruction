@@ -159,6 +159,8 @@ public static bool ShouldWaitForEvent
 
 选中的任务会在后续 `LongEventsUpdate` 中推进。下面依次看主体由谁执行、什么时候需要继续等，以及完成后怎样清理。
 
+常见的原版调用见[文末用例表](#原版长任务用例)。
+
 ### 3.1 同步任务在主线程直接执行
 
 同步任务在主线程直接运行。执行前会检查提示是否需要先显示。`UseStandardWindow` 根据登记条件和执行方式判断能否用标准窗口。使用标准窗口、已有提示文字且还没收到 `alreadyDisplayed` 标记时，`ShouldWaitUntilDisplayed` 要求留到后续更新再检查。
@@ -238,9 +240,7 @@ private static void UpdateCurrentSynchronousEvent(out bool sceneChanged)
 
 异常传播到管理器时，由 `catch` 记录，在当前记录仍存在时调用其中的异常处理函数，再清理任务状态。
 
-原版的自动存档、存档窗口里的手动保存，以及启动数据加载后的界面和声音初始化，都登记为同步任务。
-
-源码定位：标准窗口与显示条件（`Verse.LongEventHandler.cs:543`、`Verse.LongEventHandler.cs:553`）、同步执行（`Verse.LongEventHandler.cs:350`）、登记场景请求（`UnityEngine.SceneManagement.SceneManager.cs:77`）、用例（`RimWorld.Autosaver.cs:45`、`RimWorld.Dialog_SaveFileList_Save.cs:35`、`Verse.Root.cs:70`）。
+源码定位：标准窗口与显示条件（`Verse.LongEventHandler.cs:543`、`Verse.LongEventHandler.cs:553`）、同步执行（`Verse.LongEventHandler.cs:350`）、登记场景请求（`UnityEngine.SceneManagement.SceneManager.cs:77`）。
 
 ### 3.2 异步任务由长任务线程执行
 
@@ -300,9 +300,7 @@ private static void UpdateCurrentAsynchronousEvent()
 
 存在 `levelToLoad` 时，主线程先发出 `LoadSceneAsync` 请求。后续 `UnityRuntime.Step` 开头的 `ProcessPendingLoad` 完成场景处理后，把对应操作标为完成。异步分支再次读到 `isDone` 为真时进入收尾。主线程正常收尾时先执行后续函数列表和任务的 `callback`，最后清空任务、线程与场景操作的引用。
 
-启动时加载游戏数据，以及新开局时根据玩家设置生成世界，都登记为异步任务。
-
-源码定位：异步检查与收尾（`Verse.LongEventHandler.cs:305`）、线程入口（`Verse.LongEventHandler.cs:394`）、场景请求（`UnityEngine.SceneManagement.SceneManager.cs:134`）、用例（`Verse.Root.cs:66`、`RimWorld.Page_CreateWorldParams.cs:197`）。
+源码定位：异步检查与收尾（`Verse.LongEventHandler.cs:305`）、线程入口（`Verse.LongEventHandler.cs:394`）、场景请求（`UnityEngine.SceneManagement.SceneManager.cs:134`）。
 
 ### 3.3 迭代器任务在主线程分段执行
 
@@ -388,9 +386,7 @@ private static void UpdateCurrentEnumeratorEvent()
 
 Time.realtimeSinceStartup 从运行时保存的 Stopwatch 起点取得真实经过时间，因此同次调用中也能读到计时变化。正常结束和异常路径都会尝试 Dispose 迭代器，再处理任务清理。正常结束时沿用同步模式的顺序，先清空当前任务引用，再调用后续函数列表和本任务的 `callback`。
 
-世界地图的绘制层需要分段重建时，以及开发者工具运行感染模拟时，都会登记迭代器任务。
-
-源码定位：迭代器登记（`Verse.LongEventHandler.cs:78`）、执行与清理（`Verse.LongEventHandler.cs:253`）、持续计时（`Waylith.UnityCompat.UnityTimeState.cs:36`）、用例（`RimWorld.Planet.WorldRenderer.cs:200`、`Verse.DebugOutputsInfection.cs:129`）。
+源码定位：迭代器登记（`Verse.LongEventHandler.cs:78`）、执行与清理（`Verse.LongEventHandler.cs:253`）、持续计时（`Waylith.UnityCompat.UnityTimeState.cs:36`）。
 
 ## 四、自动存档从模拟步接到主线程保存
 
@@ -729,8 +725,35 @@ if (Current.SubcameraDriver != null)
 | 整个加载的 IsAlive 检查 | 主线程每帧检查，检查之间返回帧循环 | 主线程执行后续函数并推进队列 |
 | 界面任务在队列中排队 | 任务等待前项结束 | 主线程后续更新调用初始化函数 |
 
-渲染线程沿第一章介绍的帧数据队列继续工作。下一章 [《协程的分段执行》](../06-coroutines/draft.md) 从迭代器接下去，解释等待条件怎样决定一段代码在哪个帧阶段继续。
+渲染线程沿第一章介绍的帧数据队列继续工作。
 
 源码定位：加载标记与收尾登记（`Verse.PlayDataLoader.cs:85`、`Verse.PlayDataLoader.cs:293`、`Verse.PlayDataLoader.cs:346`）、界面初始化（`Verse.Root.cs:35`）、主线程队列位置（`Waylith.EngineApplication.cs:760`）。
 
+## 原版长任务用例
+
+| 模式 | 游戏中的用例 | 排入队列的工作 | 源码位置 |
+| --- | --- | --- | --- |
+| 同步 | 自动存档 | 达到存档间隔且允许保存时登记 `DoAutosave`。完整流程见第 4 节。 | `RimWorld.Autosaver.cs:45` |
+| 同步 | 存档窗口里的手动保存 | 存档窗口把 `SaveGame` 加入队列。 | `RimWorld.Dialog_SaveFileList_Save.cs:35` |
+| 同步 | 启动时初始化界面和声音 | 启动数据加载之后，由主线程建立声音和界面入口。完整流程见第 5 节。 | `Verse.Root.cs:70` |
+| 同步 | 远行队抵达尚未生成地图的任务地点 | 主线程生成地点地图，再让远行队进入。地图已存在时，抵达处理直接执行。 | `RimWorld.Planet.CaravanArrivalAction_VisitSite.cs:59` |
+| 同步 | 远行队在世界地图上遭遇伏击 | 事件先生成敌人，再排队建立遭遇地图并安排双方入场。 | `RimWorld.IncidentWorker_Ambush.cs:56` |
+| 同步 | 重力飞船降落到需要生成地图的地块 | 同步任务调用 `ArriveNewMap`，生成地图并处理飞船抵达。 | `RimWorld.Planet.Gravship.cs:724` |
+| 同步 | 读档或开局后的画面淡入 | 地图准备后，主线程执行排队的同步函数，将画面设为黑色并启动 0.5 秒的淡入。淡入随后随画面更新。 | `Verse.Root_Play.cs:48` |
+| 异步 | 启动时加载游戏数据 | 长任务线程执行 `LoadAllPlayData`。完整流程见第 5 节。 | `Verse.Root.cs:66` |
+| 异步 | 新开局时生成世界 | 长任务线程按玩家选定的参数生成世界。 | `RimWorld.Page_CreateWorldParams.cs:197` |
+| 异步 | 从存档恢复游戏 | 进入 Play 场景后，读取和恢复存档交给长任务线程。 | `Verse.Root_Play.cs:30` |
+| 异步 | 远行队在空地块建立殖民地 | 先排入地图生成，再排入远行队入场与镜头跳转，两项依次执行。 | `RimWorld.Planet.SettleInEmptyTileUtility.cs:57` |
+| 异步 | 远行队扎营 | 生成营地地图和让远行队入场由同一项异步任务执行。 | `RimWorld.Planet.SettleInEmptyTileUtility.cs:139` |
+| 异步 | 切换游戏语言 | 更新语言设置后，在后台清除并重新加载游戏数据。 | `Verse.LanguageDatabase.cs:26` |
+| 异步 | 返回主菜单 | 后台清理地图和世界，主体结束后由主线程请求切换到 `Entry` 场景。 | `Verse.GenScene.cs:31` |
+| 迭代器 | 重建世界地图的地形绘制层 | 可见的星球层有待重建的地形绘制层时，重建会分段推进。新殖民地任务打开物品选择窗口前，也会调用这一检查。 | `RimWorld.Planet.WorldRenderer.cs:195`、`RimWorld.QuestPart_NewColony.cs:25` |
+| 迭代器 | 运行开发者工具中的游戏内感染模拟 | 模拟过程以 `IEnumerable` 入队，由主线程分次调用 `MoveNext`。 | `Verse.DebugOutputsInfection.cs:127` |
+
+飞船降落和远行队扎营都用 `GeneratingMap` 作为提示文字的翻译键。登记时，两处的 `doAsynchronously` 分别是 `false` 和 `true`。
+
+---
+
 逐段研究材料：[同步存档](../../49-long-event-queue-and-synchronous-save.md)、[异步任务](../../50-asynchronous-long-events.md)、[迭代器任务](../../51-iterator-long-events.md)、[XML 读取](../../52-parallel-xml-reading.md)、[线程池批次](../../53-threadpool-batches-and-completion.md)、[主线程交接](../../54-loading-main-thread-handoff.md)。
+
+下一章从迭代器接下去，追踪协程在各帧阶段的等待与推进。[《协程怎样分段执行》](../06-coroutines/draft.md)

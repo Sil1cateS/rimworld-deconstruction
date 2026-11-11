@@ -7,12 +7,12 @@ digraph CoroutineStages {
   pre [label="Updating → StepPreUpdate\n检查 FixedUpdate 类别", fillcolor="#e8f4ed", color="#a5cbb8"];
   update [label="调用活动 Behaviour 的 Update"];
   post [label="PostUpdate → StepPostUpdate\n检查 NextFrame、秒数、协程与异步操作等待", fillcolor="#e8f4ed", color="#a5cbb8"];
-  late [label="World.LateUpdate\n调用 LateUpdate 等，再进入 PostLateUpdate"];
+  late [label="World.LateUpdate\n调用 LateUpdate，处理待销毁对象\n再进入 PostLateUpdate"];
   mark [label="PostLateUpdate → StepEndOfFrame\n设置 _endOfFramePending，暂不推进帧末等待", fillcolor="#fff3d8", color="#cfb579"];
-  capture [label="Step 返回，继续主线程本帧工作\n采集 RenderFrame，调用 RenderThread.Enqueue"];
+  capture [label="UnityRuntime.Step 返回\n采集 RenderFrame，调用 RenderThread.Enqueue"];
   enqueued [label="FrameEnqueued\n→ ScreenCaptureFeature.RunEndOfFrame\n→ EndOfFrame.Run"];
   finish [label="RunPendingEndOfFrame\n存在标记时清除标记，Step(true, ...)\n继续 EndOfFrame 类别", fillcolor="#e8f4ed", color="#a5cbb8"];
-  note [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="各阶段只推进符合条件的记录。NextFrame 没有目标帧数检查。\nFrameEnqueued 表示渲染帧入队，图中没有 GPU 完成等待。"];
+  note [shape=plain, style="", fontsize=12, fontcolor="#526d85", label="各阶段只推进符合条件的记录。NextFrame 按普通检查继续。\nFrameEnqueued 在入队返回后触发。截图读回的等待由截图功能处理。"];
   early -> pending -> pre -> update -> post -> late -> mark -> capture -> enqueued -> finish;
   finish -> note [style=invis];
 }
