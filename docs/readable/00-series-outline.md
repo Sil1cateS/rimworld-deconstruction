@@ -155,7 +155,7 @@ Waylith 章节提供 [《从启动到每一帧：Waylith 怎样驱动 RimWorld�
 
 实际 Thing 创建、组件初始化、耐久与品质状态及属性计算留到物品模块；已有的 [长剑创建研究](42-thingmaker-and-instance-state.md) 作为该模块预备笔记保留。
 
-运行与调度已整理为三章。[第四章 tick](chapters/04-tick/README.md) 于 2026-11-08 定稿，提供发布版与完整解析版 v1.0。[第五章线程](chapters/05-threads/draft.md) 更新为整合草稿 v0.2，先讲三种长任务的运行方式，再分节展开自动存档与启动资源加载。[第六章协程](chapters/06-coroutines/draft.md) 提供整合草稿 v0.1。阅读顺序与范围见 [运行与调度整合目录](chapters/04-06-runtime-scheduling.md)。
+运行与调度已整理为三章。第四章 tick 于 2026-11-08 定稿，第五章线程于 2026-11-11 定稿，两章均提供发布版与完整解析版 v1.0。第六章协程提供整合草稿 v0.1。阅读顺序与范围见 [运行与调度整合目录](chapters/04-06-runtime-scheduling.md)。
 
 这组研究的 [游戏运行与调度大纲 v0.15](44-runtime-scheduling-outline.md) 于 2026-11-03 开始逐段阅读。首轮 [从场景入口到 Game.UpdatePlay](45-game-update-entry.md) 回接 Root、Current 与 Game 的关系，解释共享更新、游玩帧分派及暂停时的调用顺序；随后 [TickManager 的时间与循环](46-tickmanager-time-scheduling.md) 展开速度换算、时间余额和本帧推进限制，再由 [DoSingleTick 与 TickList](47-single-tick-and-ticklists.md) 接通单次模拟分派、对象登记和分组轮换。[速度控制与实际推进](48-time-controls-and-simulation-speed.md) 已回接玩家输入、暂停与强制正常速度，并用帧频案例和显示公式解释推进节奏。
 

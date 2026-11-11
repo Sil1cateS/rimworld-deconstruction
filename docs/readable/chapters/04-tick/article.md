@@ -575,6 +575,6 @@ num = Mathf.Min(num, num2);
 
 到这里，一帧从 Root_Play 进入 Game，TickManager 把时间换成有限的模拟步，每一步又交给地图、对象和全局系统。与此同时，帧级入口继续处理自己的工作。
 
-当 AutosaverTick 等入口提出耗时任务时，后续执行顺序交给 LongEventHandler。下一章 [《长任务与线程协作》](../05-threads/draft.md) 将从登记、执行和等待展开，继续追踪任务完成后由谁接下去。
+当 AutosaverTick 等入口提出耗时任务时，后续执行顺序交给 LongEventHandler。下一章从登记、执行和等待展开，继续追踪任务完成后由谁接下去。[《长任务与线程协作》](../05-threads/article.md)
 
 逐段研究材料：[游玩帧入口](../../45-game-update-entry.md)、[TickManager 循环](../../46-tickmanager-time-scheduling.md)、[单步与对象分组](../../47-single-tick-and-ticklists.md)、[速度与计数](../../48-time-controls-and-simulation-speed.md)。

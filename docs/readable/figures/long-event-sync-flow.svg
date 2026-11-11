@@ -87,8 +87,8 @@
 <g id="node7" class="node">
 <title>scene</title>
 <path fill="#edf4fb" stroke="#a8bfd4" stroke-width="1.2" d="M345.5,-521.15C345.5,-521.15 31.1,-521.15 31.1,-521.15 25.1,-521.15 19.1,-515.15 19.1,-509.15 19.1,-509.15 19.1,-468.35 19.1,-468.35 19.1,-462.35 25.1,-456.35 31.1,-456.35 31.1,-456.35 345.5,-456.35 345.5,-456.35 351.5,-456.35 357.5,-462.35 357.5,-468.35 357.5,-468.35 357.5,-509.15 357.5,-509.15 357.5,-515.15 351.5,-521.15 345.5,-521.15"/>
-<text text-anchor="middle" x="188.3" y="-494.75" font-family="Microsoft YaHei" font-size="15.00" fill="#17324d">若指定了场景，调用 LoadScene</text>
-<text text-anchor="middle" x="188.3" y="-474.5" font-family="Microsoft YaHei" font-size="15.00" fill="#17324d">并通过 sceneChanged 通知调用方</text>
+<text text-anchor="middle" x="188.3" y="-494.75" font-family="Microsoft YaHei" font-size="15.00" fill="#17324d">若指定了场景，调用 LoadScene 登记请求</text>
+<text text-anchor="middle" x="188.3" y="-474.5" font-family="Microsoft YaHei" font-size="15.00" fill="#17324d">把 sceneChanged 设为 true</text>
 </g>
 <!-- body&#45;&gt;scene -->
 <g id="edge6" class="edge">
@@ -133,7 +133,7 @@
 <g id="node11" class="node">
 <title>note</title>
 <text text-anchor="middle" x="463.3" y="-20.1" font-family="Microsoft YaHei" font-size="12.00" fill="#526d85">两侧都在主线程上。取得绘制标记前，后续更新可以继续等待。</text>
-<text text-anchor="middle" x="463.3" y="-4.35" font-family="Microsoft YaHei" font-size="12.00" fill="#526d85">图示为正常路径，异常处理见正文。</text>
+<text text-anchor="middle" x="463.3" y="-4.35" font-family="Microsoft YaHei" font-size="12.00" fill="#526d85">图示为正常路径。场景切换由后续 UnityRuntime.Step 处理。</text>
 </g>
 </g>
 </svg>

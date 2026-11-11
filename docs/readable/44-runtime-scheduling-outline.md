@@ -1,6 +1,6 @@
 # 游戏运行与调度：帧、tick、长任务、线程与协程（大纲）
 
-讨论大纲 v0.15，依据工作区 RimWorld 1.7.4982 rev1280 的代码与兼容层整理。第四章已定稿，第五、六章处于整合草稿阶段。阅读入口见 [三章目录](chapters/04-06-runtime-scheduling.md)，本文件保留研究范围与逐段阅读进度。
+讨论大纲 v0.15，依据工作区 RimWorld 1.7.4982 rev1280 的代码与兼容层整理。第四、五章已定稿，第六章可读整合草稿。阅读入口见 [三章目录](chapters/04-06-runtime-scheduling.md)，本文件保留研究范围与逐段阅读进度。
 
 这一组围绕游戏怎样安排执行展开：每帧调用哪些工作、模拟时间怎样推进、耗时操作交给谁、等待以后由谁继续执行。“游戏运行流程”从 Root 和 Game 接下去，线程协作与协程分别在实际调用位置展开。
 
@@ -34,7 +34,9 @@
 
 接着进入 [自定义等待与协程结束](57-custom-yield-and-coroutine-ending.md)：沿 CustomYieldInstruction 的子迭代器连接，展开 WaitUntil 与真实计时等待，再追踪 Stop、StopAll、组件停用和对象销毁，核对列表移除及 finally 的实际执行。
 
-2026-11-07 将这些材料整理为 tick、线程与协程三章。2026-11-08 [第四章 tick](chapters/04-tick/README.md) 定稿，提供发布版与完整解析版 v1.0。[第五章线程](chapters/05-threads/draft.md) 与 [第六章协程](chapters/06-coroutines/draft.md) 仍供共同审读。
+2026-11-07 将这些材料整理为 tick、线程与协程三章。第四章 tick 与第五章线程分别于 2026-11-08 和 2026-11-11 定稿，均提供发布版与完整解析版 v1.0。[第四章](chapters/04-tick/README.md) · [第五章](chapters/05-threads/README.md)
+
+[第六章协程草稿](chapters/06-coroutines/draft.md)供共同审读。
 
 ## 一、这一组要建立的整体结构
 

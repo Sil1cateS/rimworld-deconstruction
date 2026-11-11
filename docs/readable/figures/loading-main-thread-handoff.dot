@@ -6,7 +6,7 @@ digraph LoadingMainThreadHandoff {
   mainlabel [pos="300,2010!", shape=plain, style="", fontsize=21, label="主线程：按帧检查与继续"];
   loaderlabel [pos="920,2010!", shape=plain, style="", fontsize=21, label="长任务线程：加载主体"];
   helperslabel [pos="1500,2010!", shape=plain, style="", fontsize=21, label="参与某个加载阶段的线程"];
-  queue [pos="300,1860!", label="Root.Start 依次排入\n① 后台数据加载\n② 主线程界面初始化"];
+  queue [pos="300,1860!", label="Root.Start 排入本例两项任务\n① 后台数据加载\n② 主线程界面初始化"];
   select [pos="300,1715!", label="LongEventsUpdate\n从 eventQueue 取出加载任务"];
   launch [pos="300,1570!", label="后续一次更新\n建立并启动 eventThread"];
   load [pos="920,1570!", label="LoadAllPlayData\n开始执行加载主体", fillcolor="#fff3d8", color="#cfb579"];
@@ -57,5 +57,5 @@ digraph LoadingMainThreadHandoff {
   looptop -> checkentry [arrowhead=none];
   checkentry -> check:n;
   looplabel [pos="160,1400!", shape=plain, style="", fontsize=13, fontcolor="#526d85", label="是：返回帧循环\n绘制加载画面，后续帧再查"];
-  note [pos="920,-25!", shape=plain, style="", fontsize=14, fontcolor="#526d85", label="普通启动成功路径；省略其他加载步骤与可选场景分支。\n读取线程与线程池参与不同阶段；纵向距离不表示耗时，虚线表示完成等待或结束确认。"];
+  note [pos="920,-25!", shape=plain, style="", fontsize=14, fontcolor="#526d85", label="图示聚焦普通启动时的数据加载和界面任务。首次公共初始化见正文。\n读取线程与线程池参与不同阶段。虚线表示完成等待或结束确认。"];
 }

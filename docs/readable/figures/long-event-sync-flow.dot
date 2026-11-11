@@ -9,7 +9,7 @@ digraph LongEventSyncFlow {
   wait [pos="850,875!", label="本次推进先返回\n保留 currentEvent", fillcolor="#f0eafa", color="#b5a1d1"];
   repaint [pos="850,670!", label="后续界面绘制处理 repaint\n将 alreadyDisplayed 设为 true", fillcolor="#e8f4ed", color="#a5cbb8"];
   body [pos="300,670!", height=1.05, label="直接调用非空的 eventAction\n本次更新等主体返回后才继续", fillcolor="#fff3d8", color="#cfb579"];
-  scene [pos="300,500!", label="若指定了场景，调用 LoadScene\n并通过 sceneChanged 通知调用方"];
+  scene [pos="300,500!", label="若指定了场景，调用 LoadScene 登记请求\n把 sceneChanged 设为 true"];
   finish [pos="300,325!", height=1.16, label="保存 callback，清空当前任务等引用\n依次执行后续函数列表\n和非空的 callback", fillcolor="#e8f4ed", color="#a5cbb8"];
   next [pos="300,145!", height=1.1, label="回到 LongEventsUpdate\n有排队任务时可选出下一项\n后续调用再推进它", fillcolor="#f0eafa", color="#b5a1d1"];
   entry:s -> check:n;
@@ -21,5 +21,5 @@ digraph LongEventSyncFlow {
   scene:s -> finish:n;
   finish:s -> next:n;
   recheck [pos="610,741!", shape=plain, style="", fontsize=12, fontcolor="#415b73", label="后续更新再检查"];
-  note [pos="575,27!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="两侧都在主线程上。取得绘制标记前，后续更新可以继续等待。\n图示为正常路径，异常处理见正文。"];
+  note [pos="575,27!", shape=plain, style="", fontsize=12, fontcolor="#526d85", label="两侧都在主线程上。取得绘制标记前，后续更新可以继续等待。\n图示为正常路径。场景切换由后续 UnityRuntime.Step 处理。"];
 }

@@ -29,7 +29,7 @@
 <g id="node4" class="node">
 <title>queue</title>
 <path fill="#edf4fb" stroke="#a8bfd4" stroke-width="1.3" d="M428.84,-1945.33C428.84,-1945.33 107.24,-1945.33 107.24,-1945.33 101.24,-1945.33 95.24,-1939.33 95.24,-1933.33 95.24,-1933.33 95.24,-1874.17 95.24,-1874.17 95.24,-1868.17 101.24,-1862.17 107.24,-1862.17 107.24,-1862.17 428.84,-1862.17 428.84,-1862.17 434.84,-1862.17 440.84,-1868.17 440.84,-1874.17 440.84,-1874.17 440.84,-1933.33 440.84,-1933.33 440.84,-1939.33 434.84,-1945.33 428.84,-1945.33"/>
-<text text-anchor="middle" x="268.04" y="-1920.05" font-family="Microsoft YaHei" font-size="16.00" fill="#17324d">Root.Start 依次排入</text>
+<text text-anchor="middle" x="268.04" y="-1920.05" font-family="Microsoft YaHei" font-size="16.00" fill="#17324d">Root.Start 排入本例两项任务</text>
 <text text-anchor="middle" x="268.04" y="-1899.05" font-family="Microsoft YaHei" font-size="16.00" fill="#17324d">① 后台数据加载</text>
 <text text-anchor="middle" x="268.04" y="-1878.05" font-family="Microsoft YaHei" font-size="16.00" fill="#17324d">② 主线程界面初始化</text>
 </g>
@@ -346,8 +346,8 @@
 <!-- note -->
 <g id="node28" class="node">
 <title>note</title>
-<text text-anchor="middle" x="888.04" y="-24.2" font-family="Microsoft YaHei" font-size="14.00" fill="#526d85">普通启动成功路径；省略其他加载步骤与可选场景分支。</text>
-<text text-anchor="middle" x="888.04" y="-5.45" font-family="Microsoft YaHei" font-size="14.00" fill="#526d85">读取线程与线程池参与不同阶段；纵向距离不表示耗时，虚线表示完成等待或结束确认。</text>
+<text text-anchor="middle" x="888.04" y="-24.2" font-family="Microsoft YaHei" font-size="14.00" fill="#526d85">图示聚焦普通启动时的数据加载和界面任务。首次公共初始化见正文。</text>
+<text text-anchor="middle" x="888.04" y="-5.45" font-family="Microsoft YaHei" font-size="14.00" fill="#526d85">读取线程与线程池参与不同阶段。虚线表示完成等待或结束确认。</text>
 </g>
 </g>
 </svg>
