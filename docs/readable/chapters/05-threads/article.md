@@ -756,4 +756,4 @@ if (Current.SubcameraDriver != null)
 
 逐段研究材料：[同步存档](../../49-long-event-queue-and-synchronous-save.md)、[异步任务](../../50-asynchronous-long-events.md)、[迭代器任务](../../51-iterator-long-events.md)、[XML 读取](../../52-parallel-xml-reading.md)、[线程池批次](../../53-threadpool-batches-and-completion.md)、[主线程交接](../../54-loading-main-thread-handoff.md)。
 
-下一章从迭代器接下去，追踪协程在各帧阶段的等待与推进。[《协程怎样分段执行》](../06-coroutines/draft.md)
+下一章从迭代器接下去，追踪协程在各帧阶段的等待与推进。[《协程怎样分段执行》](../06-coroutines/article.md)

@@ -2,9 +2,53 @@
 
 版本：整合草稿 v0.1｜整理日期：2026-11-07
 
-一段代码可以先执行一部分，遇到指定条件时交回控制，稍后再接着执行。当前兼容层通过 IEnumerator 保存进度，再由 CoroutineScheduler 依据帧阶段、时间和目标状态安排下一次执行。
-
 本文依据 RimWorld 1.7.4982 rev1280 的兼容层实现。源码保持原名，教学方法与变量另行注明。
+
+## 开发者索引
+
+| 想实现的功能 | 可以先看 |
+| --- | --- |
+| 在组件里启动协程，把一段逻辑拆成几次执行 | [第一节 · 从登记到输出 C](#从登记到输出-c)、[第三节 · 登记与首次执行](#三登记记录并立即推进第一段) |
+| 让代码在组件 `Update` 前或后继续 | [4.2 节 · 等待指令对照表](#42-根据返回对象写入等待条件)、[第五节 · 帧阶段检查](#五在帧阶段检查哪些记录可以继续) |
+| 延迟若干秒再执行，选择用帧时间还是持续计时 | [第六节 · `WaitForSeconds`](#六把阶段时间和完成状态对应到实际顺序)、[8.2 节 · `WaitForSecondsRealtime`](#82-用真实计时建立截止值) |
+| 等游戏推进若干 tick，或等某个状态就绪 | [第一节 · `Delay.AfterNTicks` 用例](#游戏里的常见用法)、[8.1 节 · `WaitUntil`](#81-用-waituntil-调用条件函数) |
+| 在一个协程里跑完子过程，或等另一条协程、异步操作结束 | [4.1 节 · 子过程](#41-先压入子过程再继续父过程)、[第六节 · 等待另一条记录与异步操作](#等待另一条记录时按实际检查顺序继续) |
+| 等到帧末再执行一段代码 | [第七节 · `WaitForEndOfFrame`](#七把帧末等待接回引擎调用) |
+| 实现自己的等待指令 | [第八节 · `CustomYieldInstruction`](#八把自定义条件放进迭代器栈) |
+| 停止协程，确认组件销毁或退出时的清理行为 | [第九节 · 停止与清理](#九停止记录再追踪清理动作) |
+
+## 协程是什么
+
+协程是一段能停下来、再从原处继续执行的代码。它适合把「先做一步，等一会儿或等某个条件，再接着做」写在同一个方法里。比如飞船起飞前，可以先等相机就位，再留出半秒，最后安排起飞准备。
+
+调用写有 `yield return` 的 C# 迭代器方法，会先得到一个 `IEnumerator`。它能保存执行位置和后续还要用的局部变量。把这个迭代器登记为协程时，`CoroutineScheduler` 会立即推进它。遇到等待指令，协程把执行权交回调用者，引擎可以继续处理其他工作。之后，主线程在对应的帧阶段检查条件，条件满足时从停下的位置继续。每段代码实际执行时仍占用所在帧的时间。
+
+### 谁来启动协程
+
+- **游戏代码显式启动。** 游戏代码可以把迭代器交给一个 `MonoBehaviour` 组件的 `StartCoroutine`，该组件就是这条协程登记的所属对象。普通游戏对象也可以调用 `Delay`，由它借助专门的 `CoroutineRunner` 组件调用 `StartCoroutine`。
+- **`UnityWorld` 在调用组件方法时启动。** `UnityWorld` 会按约定调用组件上的方法，例如 `Start`。如果组件把 `Start` 写成 `IEnumerator Start()`，World 会把返回的迭代器连同组件实例交给同一个调度器。
+
+这两条入口分别位于 `UnityEngine.MonoBehaviour.cs:19` 和 `Waylith.UnityCompat.UnityWorld.cs:1265`。`UnityRuntime` 在 `Waylith.UnityCompat.UnityRuntime.cs:67` 将后一条入口接到 `CoroutineScheduler.Start`。
+
+### 重力飞船起飞前的半秒等待
+
+游戏准备起飞演出时，`WorldComponent_GravshipController.OnGravshipCaptureComplete` 会在相机平移完成后调用 `Delay.AfterNSeconds(num, action)`。如果跳过平移，就直接走这一步。`num` 在这里是 `0.5f`，`action` 保存半秒后要执行的函数。`Delay` 按需创建名为 `CoroutineRunner` 的 `GameObject`，添加同名组件，再用该组件登记下面的迭代器。
+
+这段 C# 按编译产物中 `MoveNext` 的行为还原，沿用原方法与参数名。
+
+```csharp
+private static IEnumerator Internal_AfterNSeconds(float seconds, Action action)
+{
+    yield return new WaitForSeconds(seconds);
+    action?.Invoke();
+}
+```
+
+1. **登记时**，协程立即执行到 `yield return`。调度器把当前帧的累计时间加上 `0.5` 秒，记为恢复时间。
+2. **等待时**，主线程在每帧组件更新结束后的 `PostUpdate` 检查时间。半秒从登记时的帧时间算起，游戏 tick 的推进速度不会改变这个截止值。
+3. **到点时**，协程在第一次满足条件的 `PostUpdate` 继续，调用 `action` 后结束。`action` 将 `GeneratingGravship` 加入长任务队列。随后由这项长任务准备飞船并开始起飞演出。
+
+起飞流程见 `Verse.WorldComponent_GravshipController.cs:178`、`:212`、`:215` 和 `:370`。工具类见 `Delay.cs:10` 和 `:26`，迭代器主体见 `Assembly-CSharp.dll` 中的 `Delay/<Internal_AfterNSeconds>d__4.MoveNext`。
 
 ## 协程运行总览
 
@@ -21,13 +65,11 @@
 
 [SVG](../../figures/coroutinescheduler-overview.svg) · [图源](../../figures/coroutinescheduler-overview.dot)
 
-例如，协程返回半秒等待时，管理器先记下截止时间。后续 `PostUpdate` 的普通检查读到时间已到，才调用 `Advance` 继续执行等待后的语句。自定义条件也能沿这条流程检查，条件满足后弹出对应的子迭代器，接着执行父过程。
-
 ## 一、取得执行进度，再交给管理器
 
 C# 迭代器方法在被调用时返回保存状态的对象。之后调用 IEnumerator.MoveNext，才继续执行到下一次 yield 或结束；返回 true 时，Current 提供本次返回对象；返回 false 表示这一层迭代结束。
 
-下面是 MonoBehaviour 派生组件中的教学实例方法，名称为本例自行命名。null 交回本次执行，WaitForSeconds(0.5f) 提出半秒等待；具体检查过程随后展开：
+下面是 `MonoBehaviour` 派生组件中的教学方法，`Example` 为示例名称。它会依次输出 A、B、C，中间有两次 `yield return`。
 
 ```csharp
 private IEnumerator Example()
@@ -40,7 +82,7 @@ private IEnumerator Example()
 }
 ```
 
-同一组件中，另一段代码可以这样启动它。`routine` 是 `Example()` 返回的迭代器，`coroutine` 保存 `StartCoroutine` 返回的对象，后面可以用它等待或停止这条协程。
+假设同一组件在累计时间为 100 秒的那一帧，在 `Update` 中执行一次下面的代码。`routine` 是 `Example()` 返回的迭代器，`coroutine` 保存 `StartCoroutine` 返回的对象，后面可以用它等待或停止这条协程。
 
 ```csharp
 IEnumerator routine = Example();
@@ -49,7 +91,36 @@ Coroutine coroutine = StartCoroutine(routine);
 Log.Message("登记后");
 ```
 
-第一行取得 routine，尚未输出 A。StartCoroutine 会在返回前先推进一次，所以调用者先看到“登记前 → A → 登记后”。B、C 留在保存的进度后面，由后续条件检查安排。
+### 从登记到输出 C
+
+第一次由 `StartCoroutine` 进入 `CoroutineScheduler.Start`，再由 `Advance` 调用 `routine.MoveNext()`。之后，主线程在每帧的组件 `Update` 都结束后进入 `PostUpdate`。调度器的 `StepPostUpdate` 调用 `Step` 检查等待条件，满足时才调用 `Advance`，再次推进同一个 `routine`。
+
+| 时点 | 调用与进度 | 新增日志 |
+| --- | --- | --- |
+| `Update`，准备登记 | `Example()` 创建迭代器。执行到 `StartCoroutine` 前，迭代器还没有被推进。 | 登记前 |
+| `Update`，`StartCoroutine` 内 | 第一次 `MoveNext()` 执行到 `yield return null`，返回 `true`。调度器读取 `Current` 得到 `null`，留下等待普通检查的记录。 | A |
+| `Update`，`StartCoroutine` 返回 | 调用者接着执行 `Log.Message("登记后")`。 | 登记后 |
+| 同帧 `PostUpdate`，100 秒 | `Step` 检查到这条记录可以继续，第二次 `MoveNext()` 从 `yield return null` 后开始，执行到 `yield return new WaitForSeconds(0.5f)`。调度器记下截止时间 100.5 秒。 | B |
+| 后续 `PostUpdate`，例如 100.30 秒 | 时间还没到，`Step` 跳过这条记录。 | 无 |
+| 首次读到时间达到或超过 100.5 秒的 `PostUpdate`，例如 100.52 秒 | 第三次 `MoveNext()` 从半秒等待后继续，输出 C 后返回 `false`。调度器标记完成，并在本轮检查结束时移除记录。 | C |
+
+完整日志顺序为 `登记前 → A → 登记后 → B → C`。在这个启动位置，前四条日志都可以出现在同一帧。第六节会解释这份兼容层为什么允许 `yield return null` 在同帧的 `PostUpdate` 恢复。
+
+源码定位见 `Waylith.UnityCompat.UnityWorld.cs:720` 和 `UnityEngine.CoroutineScheduler.cs:15`、`:93`、`:134`、`:188`。
+
+### 游戏里的常见用法
+
+按 RimWorld 1.7.4982 rev1280 的程序集查找 `StartCoroutine` 和 `Delay` 的直接调用点，能对应到具体玩法的是前面介绍的重力飞船起飞。`Delay` 还提供等待 tick 的工具方法。下面也列出几种游戏脚本可以用同一套等待机制表达的流程。
+
+| 场景 | 内部顺序 | 出处 |
+| --- | --- | --- |
+| 重力飞船起飞前留出半秒 | 相机就位 → `Delay.AfterNSeconds` 登记迭代器 → `WaitForSeconds` 等到截止时间 → 把 `GeneratingGravship` 加入长任务队列。 | 原版用例，`Verse.WorldComponent_GravshipController.cs:215` |
+| 等若干游戏 tick 后执行动作 | `Delay.AfterNTicks` 用当前 `TicksGame` 加上指定步数得到目标 tick → `WaitUntil` 检查 `GenTicks.TicksGame >= targetTick` → 帧阶段看到条件满足后调用传入的动作。游戏暂停时，条件要等 tick 恢复推进才会达到。 | 工具方法，`Delay.cs:35`。本版程序集未找到直接调用者。 |
+| 界面提示逐渐淡出 | 先显示提示 → 每次推进时降低一点透明度 → `yield return null` 交回执行权 → 下次普通检查继续，直到隐藏提示。 | 教学用例 |
+| 镜头就位后显示对白 | 演出协程用 `StartCoroutine` 启动镜头平移 → `yield return` 得到的 `Coroutine` 对象 → 调度器检查平移协程是否结束 → 演出协程继续并显示对白。 | 教学用例 |
+| 数据就绪后刷新面板 | 启动一个返回 `AsyncOperation` 的操作 → 交给协程等待 → 调度器在 `PostUpdate` 读到 `isDone` → 协程继续，读取结果并刷新面板。 | 教学用例 |
+
+淡出和等待异步操作的常见写法也可参阅 [Unity 协程手册](https://docs.unity3d.com/cn/2022.3/Manual/Coroutines.html)。
 
 ## 二、用管理记录保存归属与等待状态
 
@@ -217,20 +288,24 @@ private IEnumerator Inner()
 
 ### 4.2 根据返回对象写入等待条件
 
-| Current 返回什么 | Advance 的主要处理 |
-| --- | --- |
-| null | 写入 NextFrame，返回 |
-| WaitForFixedUpdate | 写入 FixedUpdate，返回 |
-| WaitForEndOfFrame | 写入 EndOfFrame，返回 |
-| WaitForSeconds | 写入 WaitSeconds 与截止时间，返回 |
-| 尚未完成的 Coroutine | 保存 AwaitedHandle，写入 AwaitCoroutine，返回 |
-| Handle 为空或已完成的 Coroutine | 继续当前 Advance 循环 |
-| 尚未完成的 AsyncOperation | 保存 AwaitedOperation，写入 AwaitOperation，返回 |
-| 已完成的 AsyncOperation | 保存操作引用，写入 NextFrame，返回 |
-| 其他 IEnumerator | 压栈并继续推进 |
-| 其他未识别对象 | 写入 NextFrame，返回 |
+`Current` 给出这次 `yield return` 交给调度器的值。表中的 `Updating` 在主线程调用组件 `Update` 之前，`PostUpdate` 在这一批组件的 `Update` 之后。若协程在组件 `Update` 中返回 `null`，当帧稍后的 `PostUpdate` 就能继续推进它。
 
-源码定位：栈循环、异常与完成（`UnityEngine.CoroutineScheduler.cs:188`）、等待对象分类（`UnityEngine.CoroutineScheduler.cs:213`）、子过程压栈（`UnityEngine.CoroutineScheduler.cs:246`）。
+| `Current` 返回什么 | `Advance` 的主要处理 | 等到什么时候继续 |
+| --- | --- | --- |
+| `null` | 写入 `NextFrame`，返回 | 下一次轮到这条记录的 `PostUpdate`。 |
+| `WaitForFixedUpdate` | 写入 `FixedUpdate`，返回 | 下一次轮到这条记录的 `Updating`，即主线程执行组件 `Update` 之前。 |
+| `WaitForEndOfFrame` | 写入 `EndOfFrame`，返回 | 下一次帧末检查。图形模式通常在渲染帧入队后的主线程上执行。Headless 路径在 `PostLateUpdate` 执行。详见第七节。 |
+| `WaitForSeconds` | 写入 `WaitSeconds`，以本次累计时间加上等待秒数作为截止时间 | 首次读到帧累计时间达到或超过截止值的 `PostUpdate`。 |
+| 尚未完成的 `Coroutine` | 保存 `AwaitedHandle`，写入 `AwaitCoroutine` | `PostUpdate` 检查这条记录时，目标协程已经标记为 `IsDone`。 |
+| `Handle` 为空或已完成的 `Coroutine` | 继续当前 `Advance` 循环 | 在本次 `Advance` 立即继续。 |
+| 尚未完成的 `AsyncOperation` | 保存 `AwaitedOperation`，写入 `AwaitOperation` | 首次读到操作的 `isDone` 为 `true` 的 `PostUpdate`。 |
+| 已完成的 `AsyncOperation` | 保存操作引用，写入 `NextFrame` | 下一次轮到这条记录的 `PostUpdate`。 |
+| `WaitUntil` | 作为子迭代器压栈，立即检查条件 | 条件为 `true` 时继续父过程。首次检查就满足时当场继续，否则在后续 `PostUpdate` 检查。 |
+| `WaitForSecondsRealtime` | 作为子迭代器压栈，从首次检查的真实计时建立截止值 | 真实计时达到截止值时继续父过程。首次检查仍需等待时，由后续 `PostUpdate` 再检查。 |
+| 其他 `IEnumerator` | 压栈并立即推进子过程 | 子过程结束时，父过程在同一次 `Advance` 继续。子过程若暂停，则按它返回的对象决定何时再推进。 |
+| 其他未识别对象 | 写入 `NextFrame`，返回 | 下一次轮到这条记录的 `PostUpdate`。 |
+
+等待判断见 `UnityEngine.CoroutineScheduler.cs:134`，返回对象的处理见 `UnityEngine.CoroutineScheduler.cs:213`，子过程压栈见 `UnityEngine.CoroutineScheduler.cs:246`。
 
 ## 五、在帧阶段检查哪些记录可以继续
 
@@ -344,14 +419,7 @@ if (waitForSeconds != null)
 }
 ```
 
-对第一节的 Example，假设组件在累计时间 100 秒的 Update 中启动：
-
-| 时点 | 执行结果 | 留下什么 |
-| --- | --- | --- |
-| Update，100 秒 | 立即输出 A，返回 null | NextFrame |
-| 同帧 PostUpdate，100 秒 | 输出 B，返回半秒等待 | WaitSeconds，ResumeTime = 100.5 |
-| 后续 PostUpdate，100.3 秒 | 时间不足，跳过 | 保留原进度 |
-| 首次达到截止值的 PostUpdate，例如 100.52 秒 | 输出 C，迭代结束 | IsDone，本轮末尾移除 |
+第一节的 `Example` 在同帧的 `PostUpdate` 输出 B，随后把 `ResumeTime` 设为 `100 + 0.5`。直到某次普通检查的 `elapsed` 达到或超过 `100.5`，`Step` 才会推进它并输出 C。
 
 `Start` 使用的 `Time.time` 和阶段函数使用的 `frame.ElapsedTime` 都来自 `UnityRuntime.Step` 收到的同一个引擎时间。它在一帧开头采样，在该帧的推进中复用。兼容层的 `timeScale` 读取时固定返回 1，写入时记录未实现提示。只要引擎仍在推进帧阶段，暂停游戏模拟期间也能达到秒数等待的截止值。
 
@@ -581,16 +649,6 @@ private IEnumerator WithCleanup()
 自定义条件若在子迭代器 MoveNext 中抛出异常，也会进入 Advance 的 catch，记录错误并设置整条记录结束。仍停在栈中的父迭代器没有在这条路径中被显式 Dispose。
 
 源码定位：停止接口（`UnityEngine.MonoBehaviour.cs:29`、`UnityEngine.MonoBehaviour.cs:35`、`UnityEngine.CoroutineScheduler.cs:29`）、移除与异常（`UnityEngine.CoroutineScheduler.cs:184`、`UnityEngine.CoroutineScheduler.cs:188`）、活动与销毁（`Waylith.UnityCompat.UnityWorld.cs:944`、`Waylith.UnityCompat.UnityWorld.cs:1112`）、销毁通知连接（`Waylith.UnityCompat.UnityRuntime.cs:55`）。
-
-## 十、接回组件与游戏代码的启动入口
-
-游戏工具类 Delay 会在需要时建立名为 CoroutineRunner 的 GameObject，并添加空的 MonoBehaviour 派生组件。随后通过这个组件调用继承的 StartCoroutine，内部进度仍由共同的 CoroutineScheduler 处理。
-
-UnityWorld 还有一条入口：InvokeMessage 调用约定方法以后，检查返回值是否为 IEnumerator；取得迭代器时，通过 MessageCoroutineStarter 交给管理器。UnityRuntime 把这个函数登记为 CoroutineScheduler.Start(owner, routine)。因此，返回 IEnumerator 的约定方法也可以沿这一连接启动，例如迭代器形式的 Start。
-
-由此，组件负责提供游戏代码的调用入口，IEnumerator 保存执行进度，CoroutineHandle 保存等待状态，帧阶段再让 Step 与 Advance 反复推进。一条记录最终沿自然完成、显式停止或异常结束，交给管理器清理。
-
-源码定位：游戏工具类（`Delay.cs:10`、`Delay.cs:53`）、约定方法返回值（`Waylith.UnityCompat.UnityWorld.cs:1265`）、管理器连接（`Waylith.UnityCompat.UnityRuntime.cs:67`）。
 
 逐段研究材料：[记录与首次执行](../../55-coroutine-records-and-first-advance.md)、[帧阶段与条件检查](../../56-coroutine-phases-and-wait-checks.md)、[自定义等待与结束](../../57-custom-yield-and-coroutine-ending.md)。
 
