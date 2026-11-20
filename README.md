@@ -8,7 +8,7 @@
 
 # 我们最新的给碳基生物读的版本已经全方位超越了老式的机读版本！
 
-目前前六章均已定稿，各篇提供发布版与完整解析版 v1.0。第三章分为结构与加载两篇。
+第一至第七章均已定稿，各篇提供发布版与完整解析版 v1.0。第三章分为结构与加载两篇，第七章含世界生成主章及两个子章。
 
 | 章节 | 主要内容 | 发布版 | 完整解析版 |
 | --- | --- | --- | --- |
@@ -19,6 +19,9 @@
 | 04 · tick：游戏时间怎样前进 | 帧更新、暂停与倍速、模拟步循环、对象分组及实际推进速度 | [阅读发布版](docs/readable/chapters/04-tick/release.md) | [阅读完整解析](docs/readable/chapters/04-tick/article.md) |
 | 05 · 线程：长任务与线程协作 | 任务队列、三种执行方式、自动存档、启动加载与主线程交接 | [阅读发布版](docs/readable/chapters/05-threads/release.md) | [阅读完整解析](docs/readable/chapters/05-threads/article.md) |
 | 06 · 协程：从保存进度到等待与结束 | 协程登记、帧阶段、等待指令、停止与清理 | [阅读发布版](docs/readable/chapters/06-coroutines/release.md) | [阅读完整解析](docs/readable/chapters/06-coroutines/article.md) |
+| 07 · 世界生成：从种子到落点 | 世界设置、地表生成、开局选址与首张殖民地地图的交接 | [阅读发布版](docs/readable/chapters/07-world-generation/release.md) | [阅读完整解析](docs/readable/chapters/07-world-generation/article.md) |
+| 07a · 气候与地形规则 | 海拔与气候、群系评分、水系与道路、地标和地块特征 | [阅读发布版](docs/readable/chapters/07-world-generation/01-climate-terrain-rules-release.md) | [阅读完整解析](docs/readable/chapters/07-world-generation/01-climate-terrain-rules.md) |
+| 07b · 世界数据的存储与查询 | 地块与世界对象、选址查询、地形页读数与存读档 | [阅读发布版](docs/readable/chapters/07-world-generation/02-world-data-storage-query-release.md) | [阅读完整解析](docs/readable/chapters/07-world-generation/02-world-data-storage-query.md) |
 
 第一次阅读可以先按章节顺序读发布版。发布版以运行逻辑和图示为主，在需要时保留代码块与表格；完整解析版保留较完整的源码节选、对象与状态说明、分支条件和源码定位。
 
@@ -26,7 +29,7 @@
 
 ## 系列范围与研究进度
 
-当前成稿覆盖引擎运行、兼容层的对象与组件基础、XML 与 Def 框架，以及 tick（游戏模拟的一步）、长任务与线程协作和协程。[运行与调度目录](docs/readable/chapters/04-06-runtime-scheduling.md)
+当前成稿覆盖引擎运行、兼容层的对象与组件基础、XML 与 Def 框架、tick（游戏模拟的一步）、长任务与线程协作、协程，以及世界生成与开局选址。[运行与调度目录](docs/readable/chapters/04-06-runtime-scheduling.md)
 
 后续主题包括存档、地图和空间、Thing 与 Pawn、AI 与工作、战斗、界面与表现，以及 DLC 独有系统。
 

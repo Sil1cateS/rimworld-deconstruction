@@ -38,6 +38,14 @@
 
 图中应区分调用、返回的数据、状态变化和异步交接。概念关系图与具体调用链分别说明范围，避免用一条箭头代替未经核对的中间过程。
 
+## 系列结构图
+
+![RimWorld 源码解析的 30 个模块、已定稿章节及主要连接](figures/series-structure-overview.png)
+
+绿色标注对应[章节目录](chapters/README.md)中的定稿。紫色标注对应[渲染模块资料](15-rendering-module-notes.md)和 [Thing 实例预读](42-thingmaker-and-instance-state.md)。底部的箭头串起几条跨模块的主线，后续章节可沿这些连接展开。
+
+[SVG](figures/series-structure-overview.svg) · [图源](figures/series-structure-overview.dot)
+
 ## 模块目录草案
 
 模块编号用于引用，不代表研究顺序。渲染模块的细节研究安排在地图、空间和 UI 解析完成之后；Waylith 篇先说明收集绘制数据、线程交接、记录 Vulkan 指令及提交呈现的过程。
@@ -136,7 +144,7 @@ DLC 各自作为模块组展开，既说明独有实现，也说明它怎样接�
 
 ## 写作顺序建议与待讨论事项
 
-- 先建立一张总架构图，说明引擎、兼容层、游戏调度、地图、实体、行为和表现之间的主要连接。
+- M07 先沿新游戏准备讲世界生成和世界数据，从「生成世界」走到选定 `PlanetTile`。再讲首张殖民地地图怎样生成，接到 M08 的地图数据与查询。[《从种子到落点》发布版](chapters/07-world-generation/release.md) · [完整解析版](chapters/07-world-generation/article.md)
 - 第一组可从 Waylith 及其与游戏、渲染的接缝展开，确定系列需要的源码深度、术语解释与图示方式。
 - 完成地图、空间和 UI 的解析后，再详细研究渲染模块；Waylith 篇的绘制部分保留采集、线程交接、指令记录、提交与呈现的主线。
 - 工作模块适合随后作为跨系统样例，检验地图查询、Pawn 决策、任务执行和动作调用能否讲得连贯。

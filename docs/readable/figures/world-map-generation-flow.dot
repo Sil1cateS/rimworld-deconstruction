@@ -1,0 +1,18 @@
+digraph WorldMapGenerationFlow {
+  graph [rankdir=TB, bgcolor="white", pad="0.28", ranksep="0.34", fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="世界地图怎样生成"];
+  node [shape=box, style="rounded,filled", width=5.8, fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", margin="0.20,0.12", penwidth=1.2];
+  edge [color="#526d85", arrowsize=0.8, penwidth=1.3];
+
+  grid [label="Grids → Components\n建立球面网格与世界组件", fillcolor="#f0eafa", color="#b5a1d1"];
+  terrain [label="Terrain\n按编号填写海拔、气候和初始生物群系"];
+  water [label="Lakes → Rivers\n划出湖泊，在相邻地块之间登记河段"];
+  ancient [label="AncientSites → AncientRoads\n选出古代地点，生成古道"];
+  pollution [label="Pollution（Biotech）\n向地块写入污染量", fillcolor="#fff3d8", color="#cfb579"];
+  settlements [label="Factions → Roads\n放置派系定居点，再利用已有地点铺设道路"];
+  landmarks [label="Landmarks（Odyssey）\n为符合条件的地块放置地标", fillcolor="#fff3d8", color="#cfb579"];
+  features [label="Mutators → Features\n添加地块特征，为大片地貌命名"];
+  finish [label="所有图层生成完毕\n整理世界数据，计算世界寻路代价", fillcolor="#f0eafa", color="#b5a1d1"];
+  select [label="主线程\n准备可见图层，显示选址页上的世界地图", fillcolor="#e8f4ed", color="#a5cbb8"];
+
+  grid -> terrain -> water -> ancient -> pollution -> settlements -> landmarks -> features -> finish -> select;
+}

@@ -1,0 +1,82 @@
+// Render with neato -n2 -Tpng -Gdpi=144 or neato -n2 -Tsvg.
+digraph WorldTerrainClimateDependencies {
+  graph [layout=neato, overlap=true, splines=line, bgcolor="white", pad="0.25", fontname="Microsoft YaHei", fontsize=24, fontcolor="#17324d", labelloc=t, label="一格地表的生成顺序与数据关系"];
+  node [shape=box, style="rounded,filled", fixedsize=true, width=2.62, height=0.63, fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=15, fontcolor="#17324d", penwidth=1.2];
+  edge [color="#526d85", arrowsize=0.72, penwidth=1.4];
+
+  position [pos="304,416!", label="取地块中心\n读取三维坐标", fillcolor="#f0eafa", color="#b5a1d1"];
+  elevation [pos="304,350!", label="海拔\n海拔 ≤ 0 时视为水面"];
+  hilliness [pos="304,284!", label="山地程度\n结合山脉线与丘陵噪声"];
+  temperature [pos="304,218!", label="平均气温\n结合纬度与气温档位"];
+  rainfall [pos="304,152!", label="降雨量\n结合纬度与降雨档位"];
+  swampiness [pos="304,86!", label="沼泽程度\n平原或小丘陵才取值"];
+  biome [pos="304,20!", label="初始生物群系\n写入 PrimaryBiome", fillcolor="#e8f4ed", color="#a5cbb8"];
+  score [pos="550,20!", width=3.45, height=0.63, fontsize=12, label="候选群系按本格数据打分，最高分胜出\n水陆、山地程度、气温、降雨、沼泽", fillcolor="#e8f4ed", color="#a5cbb8"];
+
+  position:s -> elevation:n;
+  elevation:s -> hilliness:n;
+  hilliness:s -> temperature:n;
+  temperature:s -> rainfall:n;
+  rainfall:s -> swampiness:n;
+  swampiness:s -> biome:n;
+
+  // 左侧分支把同一个地块位置交给需要取样的步骤。
+  position_label [pos="125,433!", shape=plain, style="", fixedsize=false, fontsize=12, fontcolor="#207478", label="地块位置"];
+  subgraph position_inputs {
+    node [shape=point, style=filled, width=0.055, height=0.055, color="#207478", fillcolor="#207478", label=""];
+    edge [color="#207478", style=dashed, penwidth=1.25];
+    p0 [pos="52,416!"];
+    p1 [pos="52,350!"];
+    p2 [pos="52,284!"];
+    p3 [pos="52,218!"];
+    p4 [pos="52,152!"];
+    p5 [pos="52,86!"];
+
+    position:w -> p0 [arrowhead=none];
+    p0 -> p1 -> p2 -> p3 -> p4 -> p5 [arrowhead=none];
+    p1 -> elevation:w;
+    p2 -> hilliness:w;
+    p3 -> temperature:w;
+    p4 -> rainfall:w;
+    p5 -> swampiness:w;
+  }
+
+  // 右侧分支把海拔和由海拔判断的水陆条件传给后面的计算。
+  elevation_label [pos="514,367!", shape=plain, style="", fixedsize=false, fontsize=12, fontcolor="#785c9b", label="海拔"];
+  subgraph elevation_inputs {
+    node [shape=point, style=filled, width=0.055, height=0.055, color="#785c9b", fillcolor="#785c9b", label=""];
+    edge [color="#785c9b", style=dashed, penwidth=1.25];
+    e1 [pos="630,350!"];
+    e2 [pos="630,284!"];
+    e3 [pos="630,218!"];
+    e4 [pos="630,152!"];
+    e5 [pos="630,86!"];
+
+    elevation:e -> e1 [arrowhead=none];
+    e1 -> e2 -> e3 -> e4 -> e5 [arrowhead=none];
+    e2 -> hilliness:e;
+    e3 -> temperature:e;
+    e4 -> rainfall:e;
+    e5 -> swampiness:e;
+  }
+
+  // 两个局部关联单独走线，避免接到共享分支上。
+  subgraph swamp_inputs {
+    node [shape=point, style=invis, width=0.001, height=0.001, label=""];
+    edge [style=dashed, color="#a65b22", penwidth=1.25];
+    hilliness_output [pos="210.5,272!"];
+    h0 [pos="154,272!"];
+    h1 [pos="154,98!"];
+    swamp_hilliness_input [pos="210.5,98!"];
+    rainfall_output [pos="384,129.3!"];
+    swamp_rainfall_input [pos="384,108.7!"];
+
+    hilliness_output -> h0 -> h1 [arrowhead=none];
+    h1 -> swamp_hilliness_input;
+    rainfall_output -> swamp_rainfall_input;
+  }
+
+  score:w -> biome:e [style=dashed, color="#477b64", penwidth=1.25];
+
+  legend [pos="349,-35!", shape=plain, style="", fixedsize=false, fontsize=12, fontcolor="#526d85", label="中间的实线表示填写顺序　　彩色虚线表示数据流向　　圆点表示分支"];
+}

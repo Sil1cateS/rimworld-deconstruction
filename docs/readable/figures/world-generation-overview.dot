@@ -1,0 +1,15 @@
+digraph WorldGenerationOverview {
+  graph [rankdir=TB, bgcolor="white", pad="0.28", ranksep="0.40", fontname="Microsoft YaHei", fontsize=22, fontcolor="#17324d", labelloc=t, label="从生成世界到首张殖民地地图"];
+  node [shape=box, style="rounded,filled", width=5.1, fillcolor="#edf4fb", color="#a8bfd4", fontname="Microsoft YaHei", fontsize=16, fontcolor="#17324d", margin="0.20,0.13", penwidth=1.2];
+  edge [color="#526d85", arrowsize=0.8, penwidth=1.3];
+
+  create [label="主线程 · Entry\n点击「生成世界」", fillcolor="#fff3d8", color="#cfb579"];
+  world [label="后台长任务\n建立世界网格，逐层生成地块和定居点", fillcolor="#f0eafa", color="#b5a1d1"];
+  site [label="主线程 · Entry\n打开选址页，显示生成好的世界"];
+  start [label="主线程 · Entry\n确认落点，选好殖民者，点击「开始」", fillcolor="#fff3d8", color="#cfb579"];
+  prepare [label="后台长任务\n整理出发名单，在落点创建玩家据点", fillcolor="#f0eafa", color="#b5a1d1"];
+  play [label="主线程\n切换到 Play，启动 Root_Play"];
+  map [label="后台长任务\nGame.InitNewGame 调用 MapGenerator.GenerateMap\n在玩家据点上生成首张殖民地地图", fillcolor="#e8f4ed", color="#a5cbb8"];
+
+  create -> world -> site -> start -> prepare -> play -> map;
+}
